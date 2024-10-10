@@ -1,13 +1,8 @@
-<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Página Mejorada</title>
-
-    <script src="CorregirExercicis2nE.js"></script>
+<html>
+<head>
+    <script src="CorregirExercicisMates.js"></script>
     <link rel="stylesheet" type="text/css" href="gameDictado.css">
-    
+
     <!-- Añadir estilos personalizados -->
     <style>
       body {
@@ -60,16 +55,22 @@
         transform: translateY(0);
       }
     </style>
-  </head>
-  
-  <body oncopy="return false" onpaste="return false" onblur="ComencaRutina()">
-    <div id="container">
-      <h1>Exercicis de Matemàtiques</h1>
-      <!-- El contenido dinámico se generará aquí -->
+</head>
+<body oncopy="return false" onpaste="return false" onblur="ComencaRutina()">
+    <div id="container" onclick="abrirTeclado()">
+        <input type="text" id="inputField" style="opacity: 0; position: absolute; pointer-events: none;">
+        <!-- Aquí puedes añadir más contenido al contenedor si lo deseas -->
     </div>
 
     <script type="text/javascript">
-      window.onload = iniciarProces();
+        function abrirTeclado() {
+            const inputField = document.getElementById('inputField');
+            inputField.style.pointerEvents = 'auto'; // Habilitar eventos en el campo de entrada
+            inputField.focus(); // Abrir el teclado al enfocar el campo de entrada
+            inputField.style.pointerEvents = 'none'; // Volver a deshabilitar eventos
+        }
+
+        window.onload = iniciarProces();
     </script>
-  </body>
+</body>
 </html>
