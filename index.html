@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Página con Botones</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #6a11cb, #2575fc); /* Degradado de fondo */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            color: white;
+            font-size: 3rem;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 20px; /* Espacio entre botones */
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            background-color: #ff6b6b;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s, background-color 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #ff4757; /* Cambia de color al pasar el cursor */
+            transform: translateY(-5px); /* Efecto de elevación */
+        }
+
+        .btn:active {
+            transform: translateY(0); /* Regresa cuando se hace clic */
+        }
+    </style>
+</head>
+<body>
+
+    <div>
+        <h1>Selecciona una opción</h1>
+        <div class="button-container">
+            <button class="btn" onclick="window.location.href='3rA.html'">3rA</button>
+            <button class="btn" onclick="window.location.href='3rB.html'">3rB</button>
+            <button class="btn" onclick="window.location.href='2nC.html'">2nC</button>
+            <button class="btn" onclick="window.location.href='2nE.html'">2nE</button>
+        </div>
+    </div>
+
+</body>
+</html>

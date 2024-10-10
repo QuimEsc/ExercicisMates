@@ -1,0 +1,325 @@
+#lienzo { position:relative; width:100%;  }
+#footAct .btn-primary { margin:0;}
+@media all and (min-width:600px) {
+	#wrapper {width:65%!important; border-right:1px solid #fff; bottom:60px;}
+}
+.contentPista {	padding: 24px 12px;}
+
+#info{
+	display:block;
+}
+
+#info, .contentPista { background-color:#f1f1f1;}
+#scroller, #wrapper, #lienzo { background:#fff;}
+
+@media all and (max-width:600px) {
+	#info, .contentPista { background-color:#fff;}
+}
+@media all and (max-width:460px) {
+	#footAct .btn-large, #footAct .btn { padding:4px;}
+}
+
+#wrapper{
+	overflow:auto;
+}
+#pAudio{
+	display:inline-block;
+}
+
+#btnSiguiente{
+	margin-left:10px;
+}
+
+.contentPista{
+	text-align:center;
+}
+
+/* sound player */
+
+.soundPlayer { z-index:999; }
+.iPlayerReducido { display:block; width:15px; height:18px; background-image:url(/v2/resources/20220112/img/iPlayerReducido.png); background-repeat:no-repeat;}
+.iPlay { background-position: center -34px;}
+.iPause { background-position: center -7px;}
+
+.errorSound { width:45px; height:28px; background: url(/v2/resources/20220112/img/errorSoundBlack.png) no-repeat center center; cursor:help;}
+.errorSound { background: url(/v2/resources/20220112/img/errorSoundWhite.png) no-repeat center center;}
+
+.errorSound {display:none;}
+
+#errorAudio {
+	margin-top:5px;
+	background-color:grey;
+	padding:3px;
+	border-radius:5px;
+}
+
+.contentPista { text-align:center;}
+.contentPista ol { padding:0 10px 10px; margin:0; margin-top:-15px;}
+.contentPista li { display:inline; font-size:0; list-style-type:none;}
+.cajaPista {
+	overflow:hidden;
+	display:inline-block;
+	color:#fff;
+	margin:3px;
+	width:58px;
+	height:58px;
+	background-color:rgba(0,0,0,.04);
+	border-top-width: 1px;
+	border-right-width: 1px;
+	border-bottom-width: 1px;
+	border-left-width: 1px;
+	border-top-style: solid;
+	border-right-style: solid;
+	border-bottom-style: solid;
+	border-left-style: solid;
+	border-top-color: #b9b9b9;
+	border-right-color: #eeeeee;
+	border-bottom-color: #f3f3f3;
+	border-left-color: #cbcbcb;
+	box-shadow:#fff 1px 1px;
+	border-radius:1px;
+	position:relative;
+	-moz-transition:1s all;
+	transition:1s all;
+	cursor:pointer;
+}
+
+.activo { border:1px solid #fdb700; border-radius:2px; box-shadow:#fdb700 0 0 3px; background-color:#fff9e8;}
+
+@keyframes caerNum
+{
+	from {top:-100%;}
+	40% {top:30%;}
+	65% { top:-25%;}
+	80% { top:12%;}
+	90% { top:-8%;}
+	to {top:0;}
+}
+
+@-moz-keyframes caerNum
+{
+	from {top:-100%;}
+	40% {top:30%;}
+	65% { top:-25%;}
+	80% { top:12%;}
+	90% { top:-8%;}
+	to {top:0;}
+}
+@-webkit-keyframes caerNum
+{
+	from {top:-100%;}
+	40% {top:30%;}
+	65% { top:-25%;}
+	80% { top:12%;}
+	90% { top:-8%;}
+	to {top:0;}
+}
+@-o-keyframes caerNum
+{
+	from {top:-100%;}
+	40% {top:30%;}
+	65% { top:-25%;}
+	80% { top:12%;}
+	90% { top:-8%;}
+	to {top:0;}
+}
+
+.cajaPista .numeritos {
+	height:100%;
+	width:100%;
+	background-image: url(/v2/resources/20220112/img/pistaDictado.png);
+	background-repeat: no-repeat;
+	background-position: center center;
+	font-size:14px; font-weight:bold; line-height:52px;
+	text-shadow:rgba(0,0,0,.1) -1px -1px;
+	position:absolute; top:0;
+}
+@media all and (min-width:600px) {
+	.cajaPista .numeritos {
+	animation: caerNum 1.2s;
+	-moz-animation: caerNum 1.2s;
+	-webkit-animation: caerNum 1.2s; 
+	-o-animation: caerNum 1.2s; 
+}
+}
+.cabecero { text-align:center; padding-top: 12px; }
+#campoEscribir {
+	border:1px solid #d1d1d1;
+	background-color:#fff;
+	border-radius:1px;
+	padding:8px;
+	box-sizing:border-box;
+	-moz-box-sizing:border-box;
+	border-top-color:#bababa;
+	-moz-transition:.5s all;
+	transition:.5s all;
+	color:#111;
+}
+.escribir {	box-sizing:border-box;
+	-moz-box-sizing:border-box;
+	padding:8px;
+}
+#campoEscribir {  width:100%; height:100%; }
+#scroller, #lienzo { height:100%;}
+.escribir { position:absolute; top:54px; bottom:12px; 
+
+ background-color:#f4f4f4; 
+
+left:20px; right:20px;
+box-sizing:border-box;
+	-moz-box-sizing:border-box;
+
+}
+#campoEscribir[disabled="disabled"] { border-color:#fff;} 
+#campoEscribir:focus, #campoEscribir:active { border-color:rgb(253,178,0);}
+#campoEscribir.errorDictado { border-color:#cc3b2d; box-shadow:#fb9b8c 0 0 4px;}
+.errores {
+	position:absolute; z-index:99;
+	display: block;
+	bottom: 20px;
+	padding: 4px 13px;
+	left: 28px;
+	background-color:#cc3b2d;
+	border-top-right-radius: 8px;
+	color:#fff;
+	font-size:12px;
+}
+
+@media all and (max-width:420px) {
+.errores {
+		border-top-right-radius: 0;
+		right:28px;
+}
+}
+#divRespuestaF { padding:10px 15px 0;}
+#correccion .contentPista .btn {  vertical-align:middle; margin:7px 6px;}
+#correccion .contentPista ol { margin:0; padding:0; display: inline-block; vertical-align:middle;}
+#correccion .contentPista { border-bottom:1px dotted rgba(255, 255, 255, 0.2); padding:10px 0; margin-bottom:12px; background-color:transparent;}
+.contentRespuestaDi {
+	position:relative;
+	background-color:#fff; border-radius:1px; box-shadow:rgba(0,0,0,.4)0 4px 8px; color:#26282A; float:left; width:31%; max-height:340px; overflow:auto; margin-right:3%; 	box-sizing:border-box;
+	-moz-box-sizing:border-box; padding:20px; margin-bottom:15px; word-wrap:break-word; }	
+.viewRespuestas .contentRespuestaDi:last-child { margin-right:0; }
+
+.optionsView li { display:inline;}
+.optionsView  { padding:6px 0 16px; }
+.optionsView label { margin-right:18px; padding:0 6px; font-size:12px; cursor:pointer; display:inline-block;}
+.optionsView li:last-child label { margin-right:0;}
+.optionsView input { margin-right:6px; vertical-align:middle;}
+x:-o-prefocus, .optionsView input { background-color:#fff;}
+.optionsView label span { opacity:.52; transition:.5s all; -moz-transition:.5s all; display:inline-block; vertical-align:middle; color:#fff;}
+#correccion .cajaPista { box-shadow:none; border-color:rgba(255,255,255,.2); width:34px; height:34px; }
+
+#correccion .cajaPista:hover { border-color:rgba(255,255,255,.7);}
+#correccion .cajaPista .numeritos { line-height:27px; font-size:11px; background-image: url(/v2/resources/20220112/img/pistaDictadoRe.png);}
+#correccion .activo { background-color:transparent; border-color:#ffc446; }
+.contentRespuestaDi:before {
+	content:" ";
+	display:block;
+	height:4px;
+	position:absolute; top:0px; width:100%; left:0;
+}
+#divRespuestaOriginalF.contentRespuestaDi:before {
+	background: #8ebc55;
+	background: -moz-linear-gradient(top,  #8ebc55 0%, #7cac41 100%);
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#8ebc55), color-stop(100%,#7cac41));
+	background: -webkit-linear-gradient(top,  #8ebc55 0%,#7cac41 100%);
+	background: -o-linear-gradient(top,  #8ebc55 0%,#7cac41 100%);
+	background: -ms-linear-gradient(top,  #8ebc55 0%,#7cac41 100%);
+	background: linear-gradient(to bottom,  #8ebc55 0%,#7cac41 100%);
+}
+#divRespuestaTuRespuestaF.contentRespuestaDi:before {
+	background: #fdc760;
+	background: -moz-linear-gradient(top,  #fdc760 0%, #e4aa56 100%);
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#fdc760), color-stop(100%,#e4aa56));
+	background: -webkit-linear-gradient(top,  #fdc760 0%,#e4aa56 100%);
+	background: -o-linear-gradient(top,  #fdc760 0%,#e4aa56 100%);
+	background: -ms-linear-gradient(top,  #fdc760 0%,#e4aa56 100%);
+	background: linear-gradient(to bottom,  #fdc760 0%,#e4aa56 100%);
+}
+#divRespuestaCorreccionF.contentRespuestaDi:before {
+	background: #4dace8;
+	background: -moz-linear-gradient(top,  #4dace8 0%, #3796d2 100%);
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#4dace8), color-stop(100%,#3796d2));
+	background: -webkit-linear-gradient(top,  #4dace8 0%,#3796d2 100%);
+	background: -o-linear-gradient(top,  #4dace8 0%,#3796d2 100%);
+	background: -ms-linear-gradient(top,  #4dace8 0%,#3796d2 100%);
+	background: linear-gradient(to bottom,  #4dace8 0%,#3796d2 100%);
+}
+.titRespuesta { font-size:10px; text-transform:uppercase; font-weight:bold; padding:4px 0 6px; position:relative; margin-bottom:18px; color:#333;}
+.titRespuesta:after { background-color:#dfdfdf; height:1px; width:28px; position:absolute; bottom:0; content:" "; left:0;}
+.txtRespuestaDi  { padding:0 0 15px; margin:0;}
+
+.optionsView 
+:checked + span {
+	opacity:1;
+}
+
+.txtSobra {color:#9a17d0; text-decoration: line-through; }
+.txtError {color:#ff1d1d; font-weight:bold; min-width:5px; display: inline-block; border-bottom: 1px solid #ff1d1d;}
+.txtFalta { color:#ff12fb; font-weight:bold; min-width:5px; display: inline-block; border-bottom: 1px solid #126da6;}
+
+.twoBoxes .contentRespuestaDi  {width:48%; margin-right:2%;}
+
+.oneBoxes .contentRespuestaDi  {width:100%; margin-right:0;}
+
+@media all and (max-width:660px) {
+		.contentRespuestaDi  {width:48%; margin-right:2%;}
+}
+@media all and (max-width:460px) {
+		#divTodasRespuestasF .contentRespuestaDi  {width:100%; margin-right:0;}
+}
+.pistaAudio { vertical-align:middle; display: inline-block;}
+
+#correccion .pistaAudio  {margin-top: -10px;}
+
+#audioTag { position:absolute;}
+
+#divPuntuacionF {
+	background-color:rgba(255, 255, 255, 0.09);
+	float:right;
+	margin-right: 8px;
+    padding: 6px 12px;
+	border-radius:1px;
+	font-size:12px;
+}
+#divPuntuacionF .numErroneas { font-size:16px; font-weight:bold; margin-left:5px;}
+@media all and (max-width:600px) {
+		#divPuntuacionF { float:none; text-align:center; margin-bottom:4px;}
+}
+
+
+/* marca de agua */
+.mEduca { 
+	height:30px; width:113px;
+	bottom:8px; right:0px;
+	z-index:9999;
+	opacity:0;
+	transition:all .6s;
+	pointer-events: none;
+    background-image:url(/v2/resources/20220112/img/mEducaWhite.png); background-repeat:no-repeat; position:absolute;
+}
+#bodyAct:hover .mEduca { opacity:1;}
+@media all and (min-width:600px) {
+	.mEduca {  	bottom:14px;}
+}
+
+
+
+/* Escriure Fraccions */
+.fraction {
+    display: inline-block;
+    vertical-align: middle; 
+    margin: 0 0.2em 0.4ex;
+    text-align: center;
+}
+.fraction > span {
+    display: block;
+    padding-top: 0.15em;
+}
+.fraction span.fdn {
+	border-top: thin solid black;
+}
+.fraction span.bar {
+	display: none;
+}
