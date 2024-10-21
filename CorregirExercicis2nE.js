@@ -490,7 +490,7 @@
 
   }
 
-
+/*
   //FUNCIONS PER A FRACCIONS I POTÈNCIES
 
   document.addEventListener("keydown",ConvertirFraccio);
@@ -594,7 +594,7 @@
 				break;
 		}
 	  }
-
+*/
 
   // Col·loca el cursor al final del contingut
   let element = document.getElementById("Camp");
