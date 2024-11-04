@@ -491,21 +491,10 @@
   }
 
 
-  //FUNCIONS PER A FRACCIONS I POTÈNCIES
+  //FUNCIONS PER A FRACCIONS
 
   document.addEventListener("keydown",ConvertirFraccio);
   function ConvertirFraccio(e){
-    	// Verifica si es Shift + ^ para no prevenir la acción por defecto
-    
-	if (e.shiftKey && tecla === "^") {
-        // Permitir el comportamiento por defecto aquí (no llamamos a preventDefault)
-
-        	return;
-
-    	}
-
-    
-		// Llama a preventDefault en otras teclas
 	e.preventDefault(); // Evita que el navegador insereixi la tecla per defecte
 	let QuadreFormules = document.getElementById("Camp").innerHTML;
 	let LongitudText = QuadreFormules.length;
@@ -523,12 +512,6 @@
 				
 				//Inserta caracters al denominador
 				document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-13) + tecla + "</span></div>";
-
-			}else if(QuadreFormules.slice(-6)=="</sup>"){		//cas POTÈNCIA
-				
-				//Inserta caracters al denominador
-				document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-6) + tecla + "</sup>";
-
 
 			}else{
 				if(tecla=="/"){		//Cas que pose fracció
@@ -558,10 +541,6 @@
 					
 
 
-				}else if(tecla=="^"){		//Cas que pose Potencia
-					document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + "<sup></sup>";
-					
-
 				}else{		// Insertar qualsevol caracter
 					document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + tecla;
 				}
@@ -585,15 +564,15 @@
 				}else if (QuadreFormules.slice(-13)=="</span></div>"){
 					document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-14) + "</span></div>";
 
-				}else if (QuadreFormules.slice(-11)=="<sup></sup>"){
-					document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-11);
-
 				}else{
 					document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML.slice(0, -1);					
 				}
 				break;
 		}
 	  }
+	console.log(QuadreFormules.slice(-14));
+	console.log(document.getElementById("Camp").innerHTML);
+
 
 	
   // Col·loca el cursor al final del contingut
