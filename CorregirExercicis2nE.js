@@ -596,7 +596,6 @@
 	  }
 
 	
-
   // Col·loca el cursor al final del contingut
   let element = document.getElementById("Camp");
   let range = document.createRange();
