@@ -154,6 +154,15 @@
 				if(localStorage.getItem("Resposta") == null){
 			        	localStorage.setItem("Resposta", JSON.stringify(Resultat)  );  //Guarda les respostes en Magatzenament Local
 					}
+			}else if(Dades.TipusCorreccio == "Test"){
+				var Resultat = {
+			          Resposta: contenido,
+			          PercentatgeAcert: 1
+			        };
+
+				if(localStorage.getItem("Resposta") == null){
+			        	localStorage.setItem("Resposta", JSON.stringify(Resultat)  );  //Guarda les respostes en Magatzenament Local
+					}
 			}else{
 				var LevenshteinPerc = calculateImprovedLevenshteinDistance(original, contenido);
 				if(LevenshteinPerc!=1){var LevenshteinPerc=0}
@@ -573,19 +582,6 @@
 	console.log(QuadreFormules.slice(-14));
 	console.log(document.getElementById("Camp").innerHTML);
 
-
-	
-  // Col·loca el cursor al final del contingut
-  let element = document.getElementById("Camp");
-  let range = document.createRange();
-  let selection = window.getSelection();
-  range.selectNodeContents(element);
-  range.collapse(false);
-  selection.removeAllRanges();
-  selection.addRange(range);
-
-  console.log(QuadreFormules.slice(-14));
-  console.log(document.getElementById("Camp").innerHTML);
 
   }
 
