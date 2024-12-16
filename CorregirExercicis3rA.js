@@ -521,7 +521,7 @@ function ComencaRutina(){
     var Dades = JSON.parse(localStorage.getItem("Dades"));   //Carrega tota la info del Magatzem local
     var RespostaAlumne = document.getElementById("Camp").innerHTML; // Resposta alumne.
     if(Dades.TipusCorreccio !== "AutoAvaluacio"){
-        if(Dades.TipusCorreccio !== "Test"){
+        if(Dades.TipusCorreccio == "Test"){
             var RespostaTeorica = LlevarCodiHtml(RespostaAlumne);  //Resposta del Quadre de text
         }else{
             var RespostaTeorica = LlevarCodiHtml(RespostaAlumne.replace(/ /g, "").replace(/<br>/g, ""));  //Resposta del Quadre de text
