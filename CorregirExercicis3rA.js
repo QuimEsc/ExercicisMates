@@ -3,6 +3,7 @@
 //==========================================================================================================================
 
 var url = 'https://script.google.com/macros/s/AKfycbxvgyZP2QJm2OtwaOXn8ycYTLKXsSENb8acfVEN93CxC68Xi6PAP0rkXbPsV-rKuuZH/exec'; // URL base
+var url2 = 'https://script.google.com/macros/s/AKfycbyEL44Kh46RKxhH7FFx2hNwYxUa3vah2ZTSixPHbol0Eb1ixKhtVRyxV8RWD417j0w/exec';
 
 function corregir(original, contenido)	{
     var pos1=0;
@@ -448,96 +449,178 @@ function ComencaRutina(){
             let y = x.replaceAll("</span></div>",")");
             y = y.replaceAll("</span><span class=\"bar\">/</span><span class=\"fdn\">",")/(");
             y = y.replaceAll("<div class=\"fraction\"><span class=\"fup\">","(");
-            y = y.replaceAll(" ","");
-            y = y.replaceAll("<br>","");
+            //y = y.replaceAll(" ","");
+            //y = y.replaceAll("<br>","");
         return y;
       };
 
+    const autocorreccio = function(RespostaAlumne){
+        function ActualitzarDades(Resultat){
+            if(localStorage.getItem("Resposta") == null){
+                localStorage.setItem("Resposta", JSON.stringify(Resultat)  );  //Guarda les respostes en Magatzenament Local
+            }
+        }
+
+            // Ocultar el botón inmediatamente después
+            document.getElementById("Btn").style.display = "none";
+
+            document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>Generant correcció... Tingueu paciència...</u></b>";
+
+            //INFO a enviar
+            const question = Dades.Questio;
+            const answer = RespostaAlumne;
+            const solution = Dades.Resposta;        
+            const payload = { question, answer, solution };
+    
+           // Realiza la solicitud POST con fetch
+           fetch(url2, {
+            method: 'POST',
+            contentType: 'application/json',
+            body: JSON.stringify(payload) // Convierte el objeto a JSON
+        })
+        .then(function (response) {
+            // The API call was successful!
+            return response.json();
+          }).then(function (data) {
+            // This is the JSON from our response
+            ActualitzarDades(data);
+/*            localStorage.clear();
+            localStorage.setItem("Dades", JSON.stringify(data)  );
+*/
+
+            var Feedback = JSON.parse(localStorage.getItem("Resposta"));
+      
+            //TEMPS ESPERA PER CARREGAR NOVA PÀGINA
+                setTimeout(CarregarNouExercici, 1000);
+              function CarregarNouExercici(){
+                document.getElementById("Btn").innerHTML = "<p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"EnviarInfo()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Corregir</span></span></p>"; //Canvia nom botó
+                //document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Feedback.Resposta;
+                document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b>" + Feedback.Correction;
+                //document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b>" + "$$" +Feedback.Correction + "$$";      //Aço recomana ChatGpt per renderitzar MathJax
+
+                //Forçar renderitzar MATHJAX
+                MathJax.Hub.Queue(["Typeset", MathJax.Hub, document.getElementById("Correcio")]);
+              }
+
+              //Visualitzar de nou el BOTÓ.
+              document.getElementById("Btn").style.display = "block";
+
+            return data;
+          }).catch(function (err) {
+            // There was an error
+            console.warn('Something went wrong.', err);
+
+            //Visualitzar de nou el BOTÓ.
+            document.getElementById("Btn").style.display = "block";
+
+            EnviarInfo();
+          });    //envia dades al servidor
+    };
+
       //Canvi Nom text i reprodueix audio
     var Dades = JSON.parse(localStorage.getItem("Dades"));   //Carrega tota la info del Magatzem local
-    var RespostaTeorica = LlevarCodiHtml(document.getElementById("Camp").innerHTML);  //Resposta del Quadre de text
-    var Resposta =  Dades.Resposta;
-    console.log(RespostaTeorica);
-    var CorreccioArray = corregir(Resposta, RespostaTeorica);  //[HTML correccio, % acert]
+    var RespostaAlumne = document.getElementById("Camp").innerHTML; // Resposta alumne.
+    if(Dades.TipusCorreccio !== "AutoAvaluacio" && Dades.TipusCorreccio !== "Test"){
+        var RespostaTeorica = LlevarCodiHtml(RespostaAlumne.replace(/ /g, "").replace(/<br>/g, ""));  //Resposta del Quadre de text
+        var Resposta =  Dades.Resposta;
+        console.log(RespostaTeorica);
+        var CorreccioArray = corregir(Resposta, RespostaTeorica);  //[HTML correccio, % acert]
 
-    if(CorreccioArray[1]<1){
-        document.getElementById("Btn").innerHTML = "<p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"ComencaRutina()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Corregir</span></span></p>"; //Canvia nom botó
-        document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Dades.Resposta;
-        document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b>" + CorreccioArray[0];
-
-
-        //Afegit:  SI ERROR -->  mostra la resposta durant 7 segons i passa a la següent pregunta.
-            document.getElementById("Camp").innerText = Resposta;		//escriu la resposta correcta en el quadre.
-            var RetrasEnviarResposta = setTimeout(ComencaRutina,7000);
-        //Fi de l'afegit
-
-
-  }else{
-      //Borra SetTimeout
-    clearTimeout(RetrasEnviarResposta);
-      //Envia la informació al servidor per actulitzar la BBDD
-        // Recupera la información del almacenamiento local y de sesión
-        var NomAlumne = sessionStorage.getItem("NomAlumnes"); // Nombre del alumno
-        var UserIp = sessionStorage.getItem("userIP"); // Dirección IP del usuario
-        var Dades = JSON.parse(localStorage.getItem("Dades")); // Datos de ejercicios
-        var Respostes = JSON.parse(localStorage.getItem("Resposta")); // Respuestas
-
-        // Crea el objeto de datos a enviar
-        var data = {
-        NomAlumne: NomAlumne,
-        ID: Dades.ID,
-        ID_Exercici: Dades.ID_Exercici,
-        RespostaTeorica: Respostes.Resposta,
-        Percen: Respostes.PercentatgeAcert,
-        IP: UserIp
-        };
-
-
-    //BORRA EL DOM
-    var DivDesplegable = document.getElementById("container");  //Selecciona el ID de container
-    DivDesplegable.innerHTML ="";
-    //FI borrar DOM
+        //VISUALITZACIÓ DE LA CORRECCIÓ
+        if(CorreccioArray[1]<1){
+            document.getElementById("Btn").innerHTML = "<p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"ComencaRutina()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Corregir</span></span></p>"; //Canvia nom botó
+            document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Dades.Resposta;
+            document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b>" + CorreccioArray[0];
     
-    //Publica imatge d'ÀNIM
-    let maxim = 8;  //Nombre mmàxim fotos
-    let Aleatori = Math.floor(Math.random() * maxim) +1;
-    DivDesplegable.innerHTML= "<video autoplay loop><source src=\"img/" + Aleatori + ".mp4\" type=\"video/mp4\"></video>"; //Crea animació ànim 	
+    
+            //Afegit:  SI ERROR -->  mostra la resposta durant 7 segons i passa a la següent pregunta.
+                document.getElementById("Camp").innerText = Resposta;		//escriu la resposta correcta en el quadre.
+                var RetrasEnviarResposta = setTimeout(EnviarInfo,7000);
+            //Fi de l'afegit
+    
+    
+        }else{
+            EnviarInfo();
+        }
+    }else{
+        var CorreccioArray = autocorreccio(RespostaAlumne);  //AutoAvaluació automàtica
+    }
+
+}
 
 
-    //Fi publicació Ànim
 
-
-    // Realiza la solicitud POST con fetch
-    fetch(url, {
-        method: 'POST',
-        contentType: 'application/json',
-        body: JSON.stringify(data) // Convierte el objeto a JSON
-    })
-    .then(function (response) {
-        // The API call was successful!
-        return response.json();
-      }).then(function (data) {
-        // This is the JSON from our response
-        //console.log(data.Sentence);
+function EnviarInfo(){
+         //Borra SetTimeout
+         if (typeof RetrasEnviarResposta !== "undefined") {
+            clearTimeout(RetrasEnviarResposta);
+        }
+         //Envia la informació al servidor per actulitzar la BBDD
+           // Recupera la información del almacenamiento local y de sesión
+           var NomAlumne = sessionStorage.getItem("NomAlumnes"); // Nombre del alumno
+           var UserIp = sessionStorage.getItem("userIP"); // Dirección IP del usuario
+           var Dades = JSON.parse(localStorage.getItem("Dades")); // Datos de ejercicios
+           var Respostes = JSON.parse(localStorage.getItem("Resposta")); // Respuestas
+   
+           // Crea el objeto de datos a enviar
+           var data = {
+           NomAlumne: NomAlumne,
+           ID: Dades.ID,
+           ID_Exercici: Dades.ID_Exercici,
+           RespostaTeorica: Respostes.Resposta,
+           Retroalimentacio: Respostes.Correction,
+           Percen: Respostes.PercentatgeAcert,
+           IP: UserIp
+           };
+   
+        //BORRA LocalStore
         localStorage.clear();
-        localStorage.setItem("Dades", JSON.stringify(data)  );
-        var Dades = JSON.parse(localStorage.getItem("Dades"));
-  
-        //TEMPS ESPERA PER CARREGAR NOVA PÀGINA
-            setTimeout(CarregarNouExercici, 2000);
-          function CarregarNouExercici(){
-              CrearDom();		//Crea el nou dom
-              document.getElementById("Apartat").innerHTML = Dades.Apartat;
-              document.getElementById("Questio").innerHTML = Dades.Questio;
-              if(Dades.Audio != ""){
-                  document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
-                  }
-          }    
-      }).catch(function (err) {
-        // There was an error
-        console.warn('Something went wrong.', err);
-      });    //envia dades al servidor
-  }
+        localStorage.setItem("Dades", JSON.stringify(data)  )
+
+       //BORRA EL DOM
+       var DivDesplegable = document.getElementById("container");  //Selecciona el ID de container
+       DivDesplegable.innerHTML ="";
+       //FI borrar DOM
+       
+       //Publica imatge d'ÀNIM
+       let maxim = 8;  //Nombre mmàxim fotos
+       let Aleatori = Math.floor(Math.random() * maxim) +1;
+       DivDesplegable.innerHTML= "<video autoplay loop><source src=\"img/" + Aleatori + ".mp4\" type=\"video/mp4\"></video>"; //Crea animació ànim 	
+   
+   
+       //Fi publicació Ànim
+   
+   
+       // Realiza la solicitud POST con fetch
+       fetch(url, {
+           method: 'POST',
+           contentType: 'application/json',
+           body: JSON.stringify(data) // Convierte el objeto a JSON
+       })
+       .then(function (response) {
+           // The API call was successful!
+           return response.json();
+         }).then(function (data) {
+           // This is the JSON from our response
+           //console.log(data.Sentence);
+           localStorage.clear();
+           localStorage.setItem("Dades", JSON.stringify(data)  );
+           var Dades = JSON.parse(localStorage.getItem("Dades"));
+     
+           //TEMPS ESPERA PER CARREGAR NOVA PÀGINA
+               setTimeout(CarregarNouExercici, 2000);
+             function CarregarNouExercici(){
+                 CrearDom();		//Crea el nou dom
+                 document.getElementById("Apartat").innerHTML = Dades.Apartat;
+                 document.getElementById("Questio").innerHTML = Dades.Questio;
+                 if(Dades.Audio != ""){
+                     document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
+                     }
+             }    
+         }).catch(function (err) {
+           // There was an error
+           console.warn('Something went wrong.', err);
+         });    //envia dades al servidor
 }
 
 
@@ -545,85 +628,90 @@ function ComencaRutina(){
 
 document.addEventListener("keydown",ConvertirFraccio);
 function ConvertirFraccio(e){
-e.preventDefault(); // Evita que el navegador insereixi la tecla per defecte
-let QuadreFormules = document.getElementById("Camp").innerHTML;
-let LongitudText = QuadreFormules.length;
-let tecla = e.key;
 
-console.log(tecla);
+ //EVITAR FRACCIONS EN SISTEMA AUTOAVALUACIÓ
+ var Dades = JSON.parse(localStorage.getItem("Dades"));   //Carrega tota la info del Magatzem local
+ if(Dades.TipusCorreccio !== "AutoAvaluacio" && Dades.TipusCorreccio !== "Test"){   
 
+        e.preventDefault(); // Evita que el navegador insereixi la tecla per defecte
+        let QuadreFormules = document.getElementById("Camp").innerHTML;
+        let LongitudText = QuadreFormules.length;
+        let tecla = e.key;
 
-
-if(tecla.length==1){		//CAS NÚMEROS O LLETRES
-    if(tecla==" "){
-        document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + tecla;
-    }else{
-        if(QuadreFormules.slice(-13)=="</span></div>"){		//cas fracció
-            
-            //Inserta caracters al denominador
-            document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-13) + tecla + "</span></div>";
-
-        }else{
-            if(tecla=="/"){		//Cas que pose fracció
-                if(QuadreFormules.slice(-1)==")"){	//Cas amb parèntesi
-                    let PosicioParentesi;
-                    for(let i=LongitudText -1; i>=0;i--){			//busca posició (
-                        if (QuadreFormules.substr(i,1)=="("){
-                            PosicioParentesi= i;
-                            break;
-                        }else{PosicioParentesi=-1}	//Cas que obliden posar parèntesi el considera a l'inici
-                    }
-                let AbansNumerador = (PosicioParentesi != 0) ? QuadreFormules.slice(0,PosicioParentesi) : "";
-                document.getElementById("Camp").innerHTML= AbansNumerador + "<div class=\"fraction\"><span class=\"fup\">" 
-                            + QuadreFormules.substr(PosicioParentesi+1,LongitudText-PosicioParentesi-2) + "</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>"
-                }else{	//Cas Numerador SOL (mire signes)
-                    let PosicioNumerador;
-                    for(let i=LongitudText -1; i>=0;i--){			//busca posició (
-                        if (QuadreFormules.substr(i,1)==","  ||  QuadreFormules.substr(i,1)==" "  ||  QuadreFormules.substr(i,1)=="+"  || QuadreFormules.substr(i,1)=="-"  || QuadreFormules.substr(i,1).toUpperCase=="X"  || QuadreFormules.substr(i,1)==":" || QuadreFormules.substr(i,1)=="="){
-                            PosicioNumerador= i+1;
-                            break;
-                        }else{PosicioNumerador=0}	//Cas que obliden posar parèntesi el considera a l'inici
-                    }
-                let AbansNumerador = (PosicioNumerador != 0) ? QuadreFormules.slice(0,PosicioNumerador) : "";
-                document.getElementById("Camp").innerHTML= AbansNumerador + "<div class=\"fraction\"><span class=\"fup\">" 
-                            + QuadreFormules.substr(PosicioNumerador,LongitudText-PosicioNumerador) + "</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>"
-                }
-                
+        console.log(tecla);
 
 
-            }else{		// Insertar qualsevol caracter
+
+        if(tecla.length==1){		//CAS NÚMEROS O LLETRES
+            if(tecla==" "){
                 document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + tecla;
+            }else{
+                if(QuadreFormules.slice(-13)=="</span></div>"){		//cas fracció
+                    
+                    //Inserta caracters al denominador
+                    document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-13) + tecla + "</span></div>";
+
+                }else{
+                    if(tecla=="/"){		//Cas que pose fracció
+                        if(QuadreFormules.slice(-1)==")"){	//Cas amb parèntesi
+                            let PosicioParentesi;
+                            for(let i=LongitudText -1; i>=0;i--){			//busca posició (
+                                if (QuadreFormules.substr(i,1)=="("){
+                                    PosicioParentesi= i;
+                                    break;
+                                }else{PosicioParentesi=-1}	//Cas que obliden posar parèntesi el considera a l'inici
+                            }
+                        let AbansNumerador = (PosicioParentesi != 0) ? QuadreFormules.slice(0,PosicioParentesi) : "";
+                        document.getElementById("Camp").innerHTML= AbansNumerador + "<div class=\"fraction\"><span class=\"fup\">" 
+                                    + QuadreFormules.substr(PosicioParentesi+1,LongitudText-PosicioParentesi-2) + "</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>"
+                        }else{	//Cas Numerador SOL (mire signes)
+                            let PosicioNumerador;
+                            for(let i=LongitudText -1; i>=0;i--){			//busca posició (
+                                if (QuadreFormules.substr(i,1)==","  ||  QuadreFormules.substr(i,1)==" "  ||  QuadreFormules.substr(i,1)=="+"  || QuadreFormules.substr(i,1)=="-"  || QuadreFormules.substr(i,1).toUpperCase=="X"  || QuadreFormules.substr(i,1)==":" || QuadreFormules.substr(i,1)=="="){
+                                    PosicioNumerador= i+1;
+                                    break;
+                                }else{PosicioNumerador=0}	//Cas que obliden posar parèntesi el considera a l'inici
+                            }
+                        let AbansNumerador = (PosicioNumerador != 0) ? QuadreFormules.slice(0,PosicioNumerador) : "";
+                        document.getElementById("Camp").innerHTML= AbansNumerador + "<div class=\"fraction\"><span class=\"fup\">" 
+                                    + QuadreFormules.substr(PosicioNumerador,LongitudText-PosicioNumerador) + "</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>"
+                        }
+                        
+
+
+                    }else{		// Insertar qualsevol caracter
+                        document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + tecla;
+                    }
+                }
+            }
+
+        }else{		//CAS CARACTERS ESPECIALS.
+            switch(tecla){
+                case "Enter":
+                    document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + "<br> " ;
+                    break;
+
+                case "Backspace":
+                    if(QuadreFormules.slice(-14)=="></span></div>"){
+                        let IniciNumerador= QuadreFormules.lastIndexOf("<div class=\"fraction\"><span class=\"fup\">");
+                        let FinalNumerador = QuadreFormules.lastIndexOf("</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>");
+                        console.log(IniciNumerador + "  " + FinalNumerador);
+                        document.getElementById("Camp").innerHTML=QuadreFormules.slice(0,IniciNumerador) + 
+                        QuadreFormules.substring(IniciNumerador + 40 ,FinalNumerador);  //40 caracter de html abans nmerador
+
+                    }else if (QuadreFormules.slice(-13)=="</span></div>"){
+                        document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-14) + "</span></div>";
+
+                    }else{
+                        document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML.slice(0, -1);					
+                    }
+                    break;
             }
         }
+        console.log(QuadreFormules.slice(-14));
+        console.log(document.getElementById("Camp").innerHTML);
+
     }
-
-  }else{		//CAS CARACTERS ESPECIALS.
-    switch(tecla){
-        case "Enter":
-            document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + "<br> " ;
-            break;
-
-        case "Backspace":
-            if(QuadreFormules.slice(-14)=="></span></div>"){
-                let IniciNumerador= QuadreFormules.lastIndexOf("<div class=\"fraction\"><span class=\"fup\">");
-                let FinalNumerador = QuadreFormules.lastIndexOf("</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>");
-                console.log(IniciNumerador + "  " + FinalNumerador);
-                document.getElementById("Camp").innerHTML=QuadreFormules.slice(0,IniciNumerador) + 
-                QuadreFormules.substring(IniciNumerador + 40 ,FinalNumerador);  //40 caracter de html abans nmerador
-
-            }else if (QuadreFormules.slice(-13)=="</span></div>"){
-                document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-14) + "</span></div>";
-
-            }else{
-                document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML.slice(0, -1);					
-            }
-            break;
-    }
-  }
-console.log(QuadreFormules.slice(-14));
-console.log(document.getElementById("Camp").innerHTML);
-
-
 }
 
 //function BorrarContingut(){
