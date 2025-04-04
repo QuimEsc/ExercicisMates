@@ -412,9 +412,12 @@ function calculateImprovedLevenshteinDistance(a, b) {
 function CrearDom(){
   //Crear el nou DOM
     var DivContainer = document.getElementById("container");  //Selecciona el ID de container
-    var HtmlContainer = "<h2 id=\"Apartat\"></h2><h3 id=\"Questio\"></h3><h3 id=\"Resposta\"></h3><h3 id=\"Correcio\"></h3><h3 id=\"Audio\"></h3><div id=\"Camp\" contenteditable=\"true\" style=\"border-style: inset; min-height:150px\"></div></br><div id =\"Btn\" ><p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"ComencaRutina()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Comprovar</span></span></p></div>";
+    var HtmlContainer = "<h2 id=\"Apartat\"></h2><h3 id=\"Questio\"></h3><h3 id=\"Resposta\"></h3><h3 id=\"Correcio\"><div id=\"FormulaMath\"><p></p></div></h3><h3 id=\"Audio\"></h3><div id=\"Camp\" contenteditable=\"true\" style=\"border-style: inset; min-height:150px\"></div></br><div id =\"Btn\" ><p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"ComencaRutina()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Comprovar</span></span></p></div>";
 
-    DivContainer.innerHTML=HtmlContainer; //Crea el nom DOM  	
+    DivContainer.innerHTML=HtmlContainer; //Crea el nom DOM
+    
+    // Inicializar el editor después de crear los elementos
+    setTimeout(initEditor, 100);  		
 }
 
 function GuardarNomAlumne(){
@@ -624,97 +627,53 @@ function EnviarInfo(){
 
 
 //FUNCIONS PER A FRACCIONS
+function initEditor() {
+    const editor = document.getElementById('Camp');
+    const output = document.getElementById('FormulaMath');
+    
+    editor.addEventListener('input', handleInput);
 
-document.addEventListener("keydown",ConvertirFraccio);
-function ConvertirFraccio(e){
+    function handleInput() {
+      const rawText = editor.innerText; 
+      const latexText = parseTextToLatex(rawText);
+      output.innerHTML = latexText;
+      MathJax.typesetPromise();
+    }   
 
- //EVITAR FRACCIONS EN SISTEMA AUTOAVALUACIÓ
- var Dades = JSON.parse(localStorage.getItem("Dades"));   //Carrega tota la info del Magatzem local
- if(Dades.TipusCorreccio !== "AutoAvaluacio"){   
+    function parseTextToLatex(text) {
+        return text.split('\n').map(line => {
+            return line.split(/\s+/).map(token => {
+                const converted = convertToken(token);
+                return converted === token ? token : `\\(${converted}\\)`;
+            }).join(' ');
+        }).join('<br>');  // Usar <br> para saltos de línea reales
+    }
 
-        e.preventDefault(); // Evita que el navegador insereixi la tecla per defecte
-        let QuadreFormules = document.getElementById("Camp").innerHTML;
-        let LongitudText = QuadreFormules.length;
-        let tecla = e.key;
-
-        console.log(tecla);
-
-
-
-        if(tecla.length==1){		//CAS NÚMEROS O LLETRES
-            if(tecla==" "){
-                document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + tecla;
-            }else{
-                if(QuadreFormules.slice(-13)=="</span></div>"){		//cas fracció
-                    
-                    //Inserta caracters al denominador
-                    document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-13) + tecla + "</span></div>";
-
-                }else{
-                    if(tecla=="/"){		//Cas que pose fracció
-                        if(QuadreFormules.slice(-1)==")"){	//Cas amb parèntesi
-                            let PosicioParentesi;
-                            for(let i=LongitudText -1; i>=0;i--){			//busca posició (
-                                if (QuadreFormules.substr(i,1)=="("){
-                                    PosicioParentesi= i;
-                                    break;
-                                }else{PosicioParentesi=-1}	//Cas que obliden posar parèntesi el considera a l'inici
-                            }
-                        let AbansNumerador = (PosicioParentesi != 0) ? QuadreFormules.slice(0,PosicioParentesi) : "";
-                        document.getElementById("Camp").innerHTML= AbansNumerador + "<div class=\"fraction\"><span class=\"fup\">" 
-                                    + QuadreFormules.substr(PosicioParentesi+1,LongitudText-PosicioParentesi-2) + "</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>"
-                        }else{	//Cas Numerador SOL (mire signes)
-                            let PosicioNumerador;
-                            for(let i=LongitudText -1; i>=0;i--){			//busca posició (
-                                if (QuadreFormules.substr(i,1)==","  ||  QuadreFormules.substr(i,1)==" "  ||  QuadreFormules.substr(i,1)=="+"  || QuadreFormules.substr(i,1)=="-"  || QuadreFormules.substr(i,1).toUpperCase=="X"  || QuadreFormules.substr(i,1)==":" || QuadreFormules.substr(i,1)=="="){
-                                    PosicioNumerador= i+1;
-                                    break;
-                                }else{PosicioNumerador=0}	//Cas que obliden posar parèntesi el considera a l'inici
-                            }
-                        let AbansNumerador = (PosicioNumerador != 0) ? QuadreFormules.slice(0,PosicioNumerador) : "";
-                        document.getElementById("Camp").innerHTML= AbansNumerador + "<div class=\"fraction\"><span class=\"fup\">" 
-                                    + QuadreFormules.substr(PosicioNumerador,LongitudText-PosicioNumerador) + "</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>"
-                        }
-                        
-
-
-                    }else{		// Insertar qualsevol caracter
-                        document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + tecla;
-                    }
-                }
-            }
-
-        }else{		//CAS CARACTERS ESPECIALS.
-            switch(tecla){
-                case "Enter":
-                    document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML + "<br> " ;
-                    break;
-
-                case "Backspace":
-                    if(QuadreFormules.slice(-14)=="></span></div>"){
-                        let IniciNumerador= QuadreFormules.lastIndexOf("<div class=\"fraction\"><span class=\"fup\">");
-                        let FinalNumerador = QuadreFormules.lastIndexOf("</span><span class=\"bar\">/</span><span class=\"fdn\"></span></div>");
-                        console.log(IniciNumerador + "  " + FinalNumerador);
-                        document.getElementById("Camp").innerHTML=QuadreFormules.slice(0,IniciNumerador) + 
-                        QuadreFormules.substring(IniciNumerador + 40 ,FinalNumerador);  //40 caracter de html abans nmerador
-
-                    }else if (QuadreFormules.slice(-13)=="</span></div>"){
-                        document.getElementById("Camp").innerHTML= QuadreFormules.slice(0, LongitudText-14) + "</span></div>";
-
-                    }else{
-                        document.getElementById("Camp").innerHTML=document.getElementById("Camp").innerHTML.slice(0, -1);					
-                    }
-                    break;
-            }
+    function convertToken(token) {
+        // Raíces: sqrtNvalor
+        const rootMatch = token.match(/^sqrt(\d)(.*)/);
+        if (rootMatch) {
+            const index = rootMatch[1];
+            const radicand = rootMatch[2] || '';
+            return `\\sqrt[${index}]{${convertToken(radicand)}}`;
         }
-        console.log(QuadreFormules.slice(-14));
-        console.log(document.getElementById("Camp").innerHTML);
 
+        // Fracciones: a/b
+        const fractionParts = token.split('/');
+        if (fractionParts.length > 1) {
+            const numerator = fractionParts.slice(0, -1).join('/');
+            const denominator = fractionParts.pop();
+            return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
+        }
+
+        // Potencias: a^b
+        const powerParts = token.split('^');
+        if (powerParts.length > 1) {
+            const base = powerParts.slice(0, -1).join('^');
+            const exponent = powerParts.pop();
+            return `${convertToken(base)}^{${convertToken(exponent)}}`;
+        }
+
+        return token;
     }
 }
-
-//function BorrarContingut(){
-//document.getElementById("Camp").innerHTML="";
-//ComencaRutina();
-//}
-
