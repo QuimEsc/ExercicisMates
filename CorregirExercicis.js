@@ -443,10 +443,8 @@ function CrearDom(){
 
     DivContainer.innerHTML=HtmlContainer; //Crea el nom DOM
     
-      // Asegurarse de que el DOM esté completamente cargado
-  document.addEventListener("DOMContentLoaded", function() {
-      initEditor();
-  }
+  // Inicializar el editor después de crear los elementos
+    setTimeout(initEditor, 100);  
 }
 
 function GuardarNomAlumne(){
