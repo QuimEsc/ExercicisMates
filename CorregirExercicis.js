@@ -443,8 +443,10 @@ function CrearDom(){
 
     DivContainer.innerHTML=HtmlContainer; //Crea el nom DOM
     
-    // Inicializar el editor después de crear los elementos
-    setTimeout(initEditor, 100);  		
+      // Asegurarse de que el DOM esté completamente cargado
+  document.addEventListener("DOMContentLoaded", function() {
+      initEditor();
+  }
 }
 
 function GuardarNomAlumne(){
@@ -549,7 +551,8 @@ function ComencaRutina(){
 
       //Canvi Nom text i reprodueix audio
     var Dades = JSON.parse(localStorage.getItem("Dades"));   //Carrega tota la info del Magatzem local
-    var RespostaAlumne = document.getElementById("Camp").innerHTML; // Resposta alumne.
+    var RespostaAlumne = obtenerRespuestaAlumno(); // Resposta alumne.
+      
     if(Dades.TipusCorreccio !== "AutoAvaluacio"){
         var RespostaTeorica = LlevarCodiHtml(RespostaAlumne.replace(/ /g, "").replace(/<br>/g, ""));  //Resposta del Quadre de text
         var Resposta =  Dades.Resposta;
@@ -655,6 +658,45 @@ function EnviarInfo(){
 
 
 //FUNCIONS PER A FRACCIONS
+// Funciones globales para convertir texto a LaTeX
+function parseTextToLatex(text) {
+    return text.split('\n').map(line => {
+        return line.split(/\s+/).map(token => {
+            const converted = convertToken(token);
+            return converted === token ? token : `\\(${converted}\\)`;
+        }).join(' ');  // Unir los tokens con un espacio
+    }).join('<br>');  // Usar <br> para saltos de línea reales
+}
+
+function convertToken(token) {
+    // Raíces: sqrtNvalor
+    const rootMatch = token.match(/^sqrt(\d)(.*)/);
+    if (rootMatch) {
+        const index = rootMatch[1];
+        const radicand = rootMatch[2] || '';
+        return `\\sqrt[${index}]{${convertToken(radicand)}}`;
+    }
+
+    // Fracciones: a/b
+    const fractionParts = token.split('/');
+    if (fractionParts.length > 1) {
+        const numerator = fractionParts.slice(0, -1).join('/');
+        const denominator = fractionParts.pop();
+        return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
+    }
+
+    // Potencias: a^b
+    const powerParts = token.split('^');
+    if (powerParts.length > 1) {
+        const base = powerParts.slice(0, -1).join('^');
+        const exponent = powerParts.pop();
+        return `${convertToken(base)}^{${convertToken(exponent)}}`;
+    }
+
+    return token;
+}
+
+// Función para inicializar el editor
 function initEditor() {
     const editor = document.getElementById('Camp');
     const output = document.getElementById('FormulaMath');
@@ -662,46 +704,28 @@ function initEditor() {
     editor.addEventListener('input', handleInput);
 
     function handleInput() {
-      const rawText = editor.innerText; 
-      const latexText = parseTextToLatex(rawText);
-      output.innerHTML = latexText;
-      MathJax.typesetPromise();
-    }   
-
-    function parseTextToLatex(text) {
-        return text.split('\n').map(line => {
-            return line.split(/\s+/).map(token => {
-                const converted = convertToken(token);
-                return converted === token ? token : `\\(${converted}\\)`;
-            }).join(' ');
-        }).join('<br>');  // Usar <br> para saltos de línea reales
-    }
-
-    function convertToken(token) {
-        // Raíces: sqrtNvalor
-        const rootMatch = token.match(/^sqrt(\d)(.*)/);
-        if (rootMatch) {
-            const index = rootMatch[1];
-            const radicand = rootMatch[2] || '';
-            return `\\sqrt[${index}]{${convertToken(radicand)}}`;
-        }
-
-        // Fracciones: a/b
-        const fractionParts = token.split('/');
-        if (fractionParts.length > 1) {
-            const numerator = fractionParts.slice(0, -1).join('/');
-            const denominator = fractionParts.pop();
-            return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
-        }
-
-        // Potencias: a^b
-        const powerParts = token.split('^');
-        if (powerParts.length > 1) {
-            const base = powerParts.slice(0, -1).join('^');
-            const exponent = powerParts.pop();
-            return `${convertToken(base)}^{${convertToken(exponent)}}`;
-        }
-
-        return token;
+        const rawText = editor.innerText; 
+        const latexText = parseTextToLatex(rawText);
+        output.innerHTML = latexText;
+        MathJax.typesetPromise();
     }
 }
+
+// Función para obtener la respuesta del alumno y pasarla por la conversión LaTeX
+function obtenerRespuestaAlumno() {
+    // Obtener el texto crudo del editor (lo que está en el id "Camp")
+    const editor = document.getElementById('Camp');
+    const rawText = editor.innerText;
+
+    // Convertir el texto crudo a LaTeX utilizando la función parseTextToLatex
+    const latexText = parseTextToLatex(rawText);
+
+    // Almacenar el resultado en RespostaAlumne
+    var Resposta = latexText;
+
+    // Retornar el resultado si es necesario
+    console.log('Respuesta procesada del alumno: ', Resposta);
+
+    return Resposta;
+}
+
