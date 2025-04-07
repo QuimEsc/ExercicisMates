@@ -420,6 +420,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
+        RenderizarMathJax();
       }).catch(function (err) {
         // There was an error
         console.warn('Something went wrong.', err);
@@ -432,9 +433,17 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
+        RenderizarMathJax();
     }
 }
 
+function RenderizarMathJax(){
+    MathJax.typesetPromise()
+    .then(() => {
+      console.log("MathJax ha renderizado el contenido correctamente.");
+    })
+    .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
+}
 
 function CrearDom(){
   //Crear el nou DOM
@@ -527,14 +536,6 @@ function ComencaRutina(){
                 document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b></br>" + Feedback.Correction;
                 //document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b>" + "$$" +Feedback.Correction + "$$";      //Aço recomana ChatGpt per renderitzar MathJax
 
-                //Forçar renderitzar MATHJAX
-                MathJax.typesetPromise([document.getElementById("Correcio")])
-                  .then(() => {
-                    console.log("MathJax ha renderizado el contenido correctamente.");
-                  })
-                  .catch((err) => console.error(err.message));
-                //MathJax.typesetPromise();
-                //MathJax.Hub.Queue(["Typeset", MathJax.Hub, document.getElementById("Correcio")]);
               }
 
               //Visualitzar de nou el BOTÓ.
@@ -550,6 +551,7 @@ function ComencaRutina(){
 
             EnviarInfo();
           });    //envia dades al servidor
+    
     };
 
       //Canvi Nom text i reprodueix audio
@@ -582,6 +584,14 @@ function ComencaRutina(){
         var CorreccioArray = autocorreccio(RespostaAlumne);  //AutoAvaluació automàtica
     }
 
+  // Asegúrate de que MathJax renderice el contenido después de que se haya actualizado
+  setTimeout(() => {
+    MathJax.typesetPromise()
+      .then(() => {
+        console.log("MathJax ha renderizado el contenido correctamente.");
+      })
+      .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
+  }, 500); // Retraso pequeño para asegurar que el DOM está listo
 }
 
 
@@ -668,8 +678,8 @@ function EnviarInfo(){
 
 
 //FUNCIONS PER A FRACCIONS
-// Funciones globales para convertir texto a LaTeX
-function parseTextToLatex(text) {
+ // Funciones globales para convertir texto a LaTeX
+ function parseTextToLatex(text) {
     return text.split('\n').map(line => {
         return line.split(/\s+/).map(token => {
             const converted = convertToken(token);
@@ -679,7 +689,7 @@ function parseTextToLatex(text) {
 }
 
 function convertToken(token) {
-    // Raíces
+    // Raíces: sqrtNvalor
     const rootMatch = token.match(/^sqrt(\d)(.*)/);
     if (rootMatch) {
         const index = rootMatch[1];
@@ -687,28 +697,20 @@ function convertToken(token) {
         return `\\sqrt[${index}]{${convertToken(radicand)}}`;
     }
 
-    // Exponentes con paréntesis: ^(expresión)
-    const exponentWithParenthesis = token.match(/^(.*)\^\(([^)]+)\)$/);
-    if (exponentWithParenthesis) {
-        const base = exponentWithParenthesis[1];
-        const exponent = exponentWithParenthesis[2];
-        return `${convertToken(base)}^{${convertToken(exponent)}}`;
-    }
-
-    // Potencias simples: a^b
-    const powerParts = token.split('^');
-    if (powerParts.length > 1) {
-        const base = powerParts.slice(0, -1).join('^');
-        const exponent = powerParts.pop();
-        return `${convertToken(base)}^{${convertToken(exponent)}}`;
-    }
-
-    // Fracciones
+    // Fracciones: a/b
     const fractionParts = token.split('/');
     if (fractionParts.length > 1) {
         const numerator = fractionParts.slice(0, -1).join('/');
         const denominator = fractionParts.pop();
         return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
+    }
+
+    // Potencias: a^b
+    const powerParts = token.split('^');
+    if (powerParts.length > 1) {
+        const base = powerParts.slice(0, -1).join('^');
+        const exponent = powerParts.pop();
+        return `${convertToken(base)}^{${convertToken(exponent)}}`;
     }
 
     return token;
@@ -718,7 +720,7 @@ function convertToken(token) {
 function initEditor() {
     const editor = document.getElementById('Camp');
     const output = document.getElementById('FormulaMath');
-    
+
     editor.addEventListener('input', handleInput);
 
     function handleInput() {
@@ -746,4 +748,3 @@ function obtenerRespuestaAlumno() {
 
     return Resposta;
 }
-
