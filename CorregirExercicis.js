@@ -672,7 +672,7 @@ function parseTextToLatex(text) {
 }
 
 function convertToken(token) {
-    // Raíces: sqrtNvalor
+    // Raíces
     const rootMatch = token.match(/^sqrt(\d)(.*)/);
     if (rootMatch) {
         const index = rootMatch[1];
@@ -680,20 +680,28 @@ function convertToken(token) {
         return `\\sqrt[${index}]{${convertToken(radicand)}}`;
     }
 
-    // Fracciones: a/b
-    const fractionParts = token.split('/');
-    if (fractionParts.length > 1) {
-        const numerator = fractionParts.slice(0, -1).join('/');
-        const denominator = fractionParts.pop();
-        return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
+    // Exponentes con paréntesis: ^(expresión)
+    const exponentWithParenthesis = token.match(/^(.*)\^\(([^)]+)\)$/);
+    if (exponentWithParenthesis) {
+        const base = exponentWithParenthesis[1];
+        const exponent = exponentWithParenthesis[2];
+        return `${convertToken(base)}^{${convertToken(exponent)}}`;
     }
 
-    // Potencias: a^b
+    // Potencias simples: a^b
     const powerParts = token.split('^');
     if (powerParts.length > 1) {
         const base = powerParts.slice(0, -1).join('^');
         const exponent = powerParts.pop();
         return `${convertToken(base)}^{${convertToken(exponent)}}`;
+    }
+
+    // Fracciones
+    const fractionParts = token.split('/');
+    if (fractionParts.length > 1) {
+        const numerator = fractionParts.slice(0, -1).join('/');
+        const denominator = fractionParts.pop();
+        return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
     }
 
     return token;
