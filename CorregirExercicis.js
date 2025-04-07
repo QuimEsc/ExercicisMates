@@ -652,6 +652,13 @@ function EnviarInfo(){
                  if(Dades.Audio != ""){
                      document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
                      }
+                 
+                 //Forçar renderitzar MATHJAX
+                MathJax.typesetPromise([document.getElementById("Questio")])
+                  .then(() => {
+                    console.log("MathJax ha renderizado el contenido correctamente.");
+                  })
+                  .catch((err) => console.error(err.message));
              }    
          }).catch(function (err) {
            // There was an error
