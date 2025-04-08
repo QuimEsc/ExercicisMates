@@ -420,7 +420,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
-        setTimeout(RenderizarMathJax, 500);
+        setTimeout(RenderizarMathJax, 1500);
       }).catch(function (err) {
         // There was an error
         console.warn('Something went wrong.', err);
@@ -433,16 +433,8 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
-        setTimeout(RenderizarMathJax, 500);
+        setTimeout(RenderizarMathJax, 1500);
     }
-}
-
-function RenderizarMathJax(){
-    MathJax.typesetPromise()
-    .then(() => {
-      console.log("MathJax ha renderizado el contenido correctamente.");
-    })
-    .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
 }
 
 function CrearDom(){
@@ -575,7 +567,7 @@ function ComencaRutina(){
                 document.getElementById("Camp").innerText = Resposta;		//escriu la resposta correcta en el quadre.
                 var RetrasEnviarResposta = setTimeout(EnviarInfo,7000);
             //Fi de l'afegit
-    
+            setTimeout(RenderizarMathJax, 1500);
     
         }else{
             EnviarInfo();
@@ -584,14 +576,6 @@ function ComencaRutina(){
         var CorreccioArray = autocorreccio(RespostaAlumne);  //AutoAvaluació automàtica
     }
 
-  // Asegúrate de que MathJax renderice el contenido después de que se haya actualizado
-  setTimeout(() => {
-    MathJax.typesetPromise()
-      .then(() => {
-        console.log("MathJax ha renderizado el contenido correctamente.");
-      })
-      .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
-  }, 500); // Retraso pequeño para asegurar que el DOM está listo
 }
 
 
@@ -750,4 +734,13 @@ function obtenerRespuestaAlumno() {
     console.log('Respuesta procesada del alumno: ', Resposta);
 
     return Resposta;
+}
+
+
+function RenderizarMathJax(){
+    MathJax.typesetPromise()
+    .then(() => {
+      console.log("MathJax ha renderizado el contenido correctamente.");
+    })
+    .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
 }
