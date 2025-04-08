@@ -663,12 +663,15 @@ function EnviarInfo(){
                      document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
                      }
                  
-                 //Forçar renderitzar MATHJAX
-                MathJax.typesetPromise([document.getElementById("Questio")])
+                   // Asegúrate de que MathJax renderice el contenido después de que se haya actualizado
+              setTimeout(() => {
+                MathJax.typesetPromise()
                   .then(() => {
                     console.log("MathJax ha renderizado el contenido correctamente.");
                   })
-                  .catch((err) => console.error(err.message));
+                  .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
+              }, 500); // Retraso pequeño para asegurar que el DOM está listo
+                   
              }    
          }).catch(function (err) {
            // There was an error
