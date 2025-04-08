@@ -528,6 +528,7 @@ function ComencaRutina(){
                 document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b></br>" + Feedback.Correction;
                 //document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b>" + "$$" +Feedback.Correction + "$$";      //Aço recomana ChatGpt per renderitzar MathJax
 
+                setTimeout(RenderizarMathJax, 1500);
               }
 
               //Visualitzar de nou el BOTÓ.
