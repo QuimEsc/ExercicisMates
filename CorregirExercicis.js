@@ -420,7 +420,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
-        RenderizarMathJax();
+        setTimeout(RenderizarMathJax, 500);
       }).catch(function (err) {
         // There was an error
         console.warn('Something went wrong.', err);
@@ -433,7 +433,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
-        RenderizarMathJax();
+        setTimeout(RenderizarMathJax, 500);
     }
 }
 
