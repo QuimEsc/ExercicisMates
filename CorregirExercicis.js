@@ -745,3 +745,6 @@ function RenderizarMathJax(){
     })
     .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
 }
+
+// Ejecutar RenderizarMathJax cada 10 segundos (10000 milisegundos)
+setInterval(RenderizarMathJax, 10000);
