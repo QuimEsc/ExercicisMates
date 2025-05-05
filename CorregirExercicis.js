@@ -420,7 +420,20 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
-        setTimeout(RenderizarMathJax, 1500);
+        // 1r) Configura el observer para disparar MathJax al aparecer texto
+        const observer = new MutationObserver((mutations, obs) => {
+          if (document.getElementById("Questio").textContent.trim() !== "") {
+            setTimeout(RenderizarMathJax, 1000);
+            obs.disconnect();
+          }
+        });
+        observer.observe(getElementById("Questio"), { childList: true, characterData: true, subtree: true });
+        
+        // 2n) Si por algún motivo #Questio ya tenía texto (caso raro), ejecútalo ya:
+        if (getElementById("Questio").textContent.trim() !== "") {
+          observer.disconnect();
+          setTimeout(RenderizarMathJax, 1000);
+        }
       }).catch(function (err) {
         // There was an error
         console.warn('Something went wrong.', err);
@@ -433,7 +446,20 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
-        setTimeout(RenderizarMathJax, 1500);
+        // 1r) Configura el observer para disparar MathJax al aparecer texto
+        const observer = new MutationObserver((mutations, obs) => {
+          if (document.getElementById("Questio").textContent.trim() !== "") {
+            setTimeout(RenderizarMathJax, 1000);
+            obs.disconnect();
+          }
+        });
+        observer.observe(getElementById("Questio"), { childList: true, characterData: true, subtree: true });
+        
+        // 2n) Si por algún motivo #Questio ya tenía texto (caso raro), ejecútalo ya:
+        if (getElementById("Questio").textContent.trim() !== "") {
+          observer.disconnect();
+          setTimeout(RenderizarMathJax, 1000);
+        }        
     }
 }
 
@@ -747,4 +773,4 @@ function RenderizarMathJax(){
 }
 
 // Ejecutar RenderizarMathJax cada 10 segundos (10000 milisegundos)
-setInterval(RenderizarMathJax, 10000);
+//setInterval(RenderizarMathJax, 10000);
