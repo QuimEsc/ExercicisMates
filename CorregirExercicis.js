@@ -427,10 +427,10 @@ function calculateImprovedLevenshteinDistance(a, b) {
             obs.disconnect();
           }
         });
-        observer.observe(getElementById("Questio"), { childList: true, characterData: true, subtree: true });
+        observer.observe(document.getElementById("Questio"), { childList: true, characterData: true, subtree: true });
         
         // 2n) Si por algún motivo #Questio ya tenía texto (caso raro), ejecútalo ya:
-        if (getElementById("Questio").textContent.trim() !== "") {
+        if (document.getElementById("Questio").textContent.trim() !== "") {
           observer.disconnect();
           setTimeout(RenderizarMathJax, 1000);
         }
@@ -453,10 +453,10 @@ function calculateImprovedLevenshteinDistance(a, b) {
             obs.disconnect();
           }
         });
-        observer.observe(getElementById("Questio"), { childList: true, characterData: true, subtree: true });
+        observer.observe(document.getElementById("Questio"), { childList: true, characterData: true, subtree: true });
         
         // 2n) Si por algún motivo #Questio ya tenía texto (caso raro), ejecútalo ya:
-        if (getElementById("Questio").textContent.trim() !== "") {
+        if (document.getElementById("Questio").textContent.trim() !== "") {
           observer.disconnect();
           setTimeout(RenderizarMathJax, 1000);
         }        
@@ -561,10 +561,10 @@ function ComencaRutina(){
             obs.disconnect();
           }
         });
-        observer.observe(getElementById("Correcio"), { childList: true, characterData: true, subtree: true });
+        observer.observe(document.getElementById("Correcio"), { childList: true, characterData: true, subtree: true });
         
         // 2n) Si por algún motivo #Questio ya tenía texto (caso raro), ejecútalo ya:
-        if (getElementById("Correcio").textContent.trim() !== "") {
+        if (document.getElementById("Correcio").textContent.trim() !== "") {
           observer.disconnect();
           setTimeout(RenderizarMathJax, 1000);
         }
