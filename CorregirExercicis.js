@@ -748,13 +748,14 @@ function initEditor() {
     const editor = document.getElementById('Camp');
     const output = document.getElementById('FormulaMath');
 
-    editor.addEventListener('input', handleInput);
+    //editor.addEventListener('input', handleInput);  Elimino para que no ejecute con cada pulsación sino cada 2 segundos.
+    setInterval(handleInput, 1000);
 
     function handleInput() {
         const rawText = editor.innerText; 
         const latexText = parseTextToLatex(rawText);
         output.innerHTML = latexText;
-        MathJax.typesetPromise();
+        MathJax.typesetPromise();   Evito que cada vez que pulse lo convierta a mathjax
     }
 }
 
