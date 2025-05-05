@@ -771,16 +771,11 @@ function initEditor() {
   // Cada vez que cambie el contenido, reiniciamos el timer
   editor.addEventListener('input', debouncedHandle);
 
-  async function handleInput() {
+  function handleInput() {
     const rawText = editor.innerText;
     const latexText = parseTextToLatex(rawText);
     output.innerHTML = latexText;
-    try {
-      // Evitamos colapsos esperando a que termine el tipo de MathJax anterior
-      await MathJax.typesetPromise([output]);
-    } catch (err) {
-      console.error('Error al renderizar MathJax:', err);
-    }
+    MathJax.typesetPromise(); 
   }
 }
 
