@@ -767,8 +767,8 @@ function initEditor() {
     const rawText = editor.innerText;
     const latexText = parseTextToLatex(rawText);
     output.innerHTML = latexText;
-    setTimeout(RenderizarMathJax, 500);
-    //MathJax.typesetPromise(); 
+    //setTimeout(RenderizarMathJax, 500);
+    MathJax.typesetPromise(); 
   }
 }
 
