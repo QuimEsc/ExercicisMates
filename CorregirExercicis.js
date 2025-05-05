@@ -743,14 +743,6 @@ function convertToken(token) {
   return token;
 }
 
-function parseTextToLatex(text) {
-  // Asumimos que parseTextToLatex divide en tokens y aplica convertToken
-  return text
-    .split(/\s+/)
-    .map(convertToken)
-    .join(' ');
-}
-
 // Función de debounce genérica
 function debounce(fn, delay) {
   let timer = null;
