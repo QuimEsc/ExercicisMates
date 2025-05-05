@@ -716,47 +716,72 @@ function EnviarInfo(){
 }
 
 function convertToken(token) {
-    // Raíces: sqrtNvalor
-    const rootMatch = token.match(/^sqrt(\d)(.*)/);
-    if (rootMatch) {
-        const index = rootMatch[1];
-        const radicand = rootMatch[2] || '';
-        return `\\sqrt[${index}]{${convertToken(radicand)}}`;
-    }
+  // Raíces: sqrtNvalor
+  const rootMatch = token.match(/^sqrt(\d)(.*)/);
+  if (rootMatch) {
+    const index = rootMatch[1];
+    const radicand = rootMatch[2] || '';
+    return `\\sqrt[${index}]{${convertToken(radicand)}}`;
+  }
 
-    // Fracciones: a/b
-    const fractionParts = token.split('/');
-    if (fractionParts.length > 1) {
-        const numerator = fractionParts.slice(0, -1).join('/');
-        const denominator = fractionParts.pop();
-        return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
-    }
+  // Fracciones: a/b
+  const fractionParts = token.split('/');
+  if (fractionParts.length > 1) {
+    const numerator = fractionParts.slice(0, -1).join('/');
+    const denominator = fractionParts.pop();
+    return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
+  }
 
-    // Potencias: a^b
-    const powerParts = token.split('^');
-    if (powerParts.length > 1) {
-        const base = powerParts.slice(0, -1).join('^');
-        const exponent = powerParts.pop();
-        return `${convertToken(base)}^{${convertToken(exponent)}}`;
-    }
+  // Potencias: a^b
+  const powerParts = token.split('^');
+  if (powerParts.length > 1) {
+    const base = powerParts.slice(0, -1).join('^');
+    const exponent = powerParts.pop();
+    return `${convertToken(base)}^{${convertToken(exponent)}}`;
+  }
 
-    return token;
+  return token;
+}
+
+function parseTextToLatex(text) {
+  // Asumimos que parseTextToLatex divide en tokens y aplica convertToken
+  return text
+    .split(/\s+/)
+    .map(convertToken)
+    .join(' ');
+}
+
+// Función de debounce genérica
+function debounce(fn, delay) {
+  let timer = null;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
 }
 
 // Función para inicializar el editor
 function initEditor() {
-    const editor = document.getElementById('Camp');
-    const output = document.getElementById('FormulaMath');
+  const editor = document.getElementById('Camp');
+  const output = document.getElementById('FormulaMath');
 
-    //editor.addEventListener('input', handleInput);  Elimino para que no ejecute con cada pulsación sino cada 2 segundos.
-    setInterval(handleInput, 1000);
+  // Creamos un handler debounced de 1000 ms
+  const debouncedHandle = debounce(handleInput, 1000);
 
-    function handleInput() {
-        const rawText = editor.innerText; 
-        const latexText = parseTextToLatex(rawText);
-        output.innerHTML = latexText;
-        MathJax.typesetPromise();   Evito que cada vez que pulse lo convierta a mathjax
+  // Cada vez que cambie el contenido, reiniciamos el timer
+  editor.addEventListener('input', debouncedHandle);
+
+  async function handleInput() {
+    const rawText = editor.innerText;
+    const latexText = parseTextToLatex(rawText);
+    output.innerHTML = latexText;
+    try {
+      // Evitamos colapsos esperando a que termine el tipo de MathJax anterior
+      await MathJax.typesetPromise([output]);
+    } catch (err) {
+      console.error('Error al renderizar MathJax:', err);
     }
+  }
 }
 
 // Función para obtener la respuesta del alumno y pasarla por la conversión LaTeX
