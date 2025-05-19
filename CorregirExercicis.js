@@ -426,6 +426,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
             setTimeout(RenderizarMathJax, 1000);
             obs.disconnect();
           }
+            setTimeout(RenderizarMathJax, 5000);
         });
         observer.observe(document.getElementById("Questio"), { childList: true, characterData: true, subtree: true });
         
@@ -434,6 +435,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
           observer.disconnect();
           setTimeout(RenderizarMathJax, 1000);
         }
+        setTimeout(RenderizarMathJax, 5000);
       }).catch(function (err) {
         // There was an error
         console.warn('Something went wrong.', err);
@@ -452,6 +454,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
             setTimeout(RenderizarMathJax, 1000);
             obs.disconnect();
           }
+            setTimeout(RenderizarMathJax, 5000);
         });
         observer.observe(document.getElementById("Questio"), { childList: true, characterData: true, subtree: true });
         
@@ -459,7 +462,8 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if (document.getElementById("Questio").textContent.trim() !== "") {
           observer.disconnect();
           setTimeout(RenderizarMathJax, 1000);
-        }        
+        }
+          setTimeout(RenderizarMathJax, 5000);
     }
 }
 
@@ -561,6 +565,7 @@ function ComencaRutina(){
             obs.disconnect();
           }
         });
+            setTimeout(RenderizarMathJax, 5000);
         observer.observe(document.getElementById("Correcio"), { childList: true, characterData: true, subtree: true });
         
         // 2n) Si por algún motivo #Questio ya tenía texto (caso raro), ejecútalo ya:
@@ -569,6 +574,7 @@ function ComencaRutina(){
           setTimeout(RenderizarMathJax, 1000);
         }
               }
+            setTimeout(RenderizarMathJax, 5000);
 
               //Visualitzar de nou el BOTÓ.
               document.getElementById("Btn").style.display = "block";
