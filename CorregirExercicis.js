@@ -610,7 +610,10 @@ function ComencaRutina(){
         document.getElementById("Btn").innerHTML = "<p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"EnviarInfo()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Següent</span></span></p>";
         document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Dades.Resposta;
         document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>COPIA LA RESPOSTA CORRECTA I DESPRÉS PREM SEGÜENT.</u></b>";
-        document.getElementById("Camp").innerText = Dades.Resposta;
+        document.getElementById("Camp").innerText = "";
+        if(document.getElementById("FormulaMath")){
+            document.getElementById("FormulaMath").innerHTML = "";
+        }
         setTimeout(RenderizarMathJax, 1500);
         return;
     }
