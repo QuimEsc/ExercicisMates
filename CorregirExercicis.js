@@ -733,42 +733,595 @@ function EnviarInfo(){
 
 
 //FUNCIONS PER A FRACCIONS
- // Funciones globales para convertir texto a LaTeX
- function parseTextToLatex(text) {
-    return text.split('\n').map(line => {
-        return line.split(/\s+/).map(token => {
-            const converted = convertToken(token);
-            return converted === token ? token : `\\(${converted}\\)`;
-        }).join(' ');  // Unir los tokens con un espacio
-    }).join('<br>');  // Usar <br> para saltos de línea reales
+// Funciones globales para convertir texto mixto a LaTeX sin perder el texto normal
+function parseTextToLatex(text) {
+    return text.split('\n').map(function(line) {
+        return renderMixedMathLine(line);
+    }).join('<br>');
 }
 
-function convertToken(token) {
-  // Raíces: sqrtNvalor
-  const rootMatch = token.match(/^sqrt(\d)(.*)/);
-  if (rootMatch) {
-    const index = rootMatch[1];
-    const radicand = rootMatch[2] || '';
-    return `\\sqrt[${index}]{${convertToken(radicand)}}`;
-  }
+function renderMixedMathLine(line) {
+    var tokens = tokenizeMixedLine(line);
+    var result = "";
+    var i = 0;
+    var trimmedLine = line.trim();
+    var trimmedStart = line.search(/\S/);
+    var trimmedEnd = trimmedLine === "" ? -1 : trimmedStart + trimmedLine.length;
 
-  // Fracciones: a/b
-  const fractionParts = token.split('/');
-  if (fractionParts.length > 1) {
-    const numerator = fractionParts.slice(0, -1).join('/');
-    const denominator = fractionParts.pop();
-    return `\\frac{${convertToken(numerator)}}{${convertToken(denominator)}}`;
-  }
+    while (i < tokens.length) {
+        if (!canStartMathSegment(tokens[i])) {
+            result += tokens[i].value;
+            i++;
+            continue;
+        }
 
-  // Potencias: a^b
-  const powerParts = token.split('^');
-  if (powerParts.length > 1) {
-    const base = powerParts.slice(0, -1).join('^');
-    const exponent = powerParts.pop();
-    return `${convertToken(base)}^{${convertToken(exponent)}}`;
-  }
+        var bestEnd = -1;
+        var bestLatex = "";
 
-  return token;
+        for (var j = i; j < tokens.length; j++) {
+            if (!isMathCandidateToken(tokens[j])) {
+                break;
+            }
+
+            if (tokens[j].type === "space") {
+                continue;
+            }
+
+            var rawCandidate = line.slice(tokens[i].start, tokens[j].end);
+            var trimmedCandidate = rawCandidate.trim();
+            var parsedCandidate = tryParseMathExpression(trimmedCandidate);
+
+            if (parsedCandidate && shouldRenderAsMath(parsedCandidate, trimmedCandidate, tokens[i].start, tokens[j].end, trimmedStart, trimmedEnd)) {
+                bestEnd = j;
+                bestLatex = "\\(" + parsedCandidate.latex + "\\)";
+            }
+        }
+
+        if (bestEnd !== -1) {
+            result += bestLatex;
+            i = bestEnd + 1;
+        } else {
+            result += tokens[i].value;
+            i++;
+        }
+    }
+
+    return result;
+}
+
+function tokenizeMixedLine(line) {
+    var tokens = [];
+    var i = 0;
+
+    while (i < line.length) {
+        var start = i;
+        var chunk = line.charAt(i);
+
+        if (/\s/.test(chunk)) {
+            while (i < line.length && /\s/.test(line.charAt(i))) {
+                i++;
+            }
+            tokens.push({ type: "space", value: line.slice(start, i), start: start, end: i });
+            continue;
+        }
+
+        if ((chunk === "<" || chunk === ">") && line.charAt(i + 1) === "=") {
+            tokens.push({ type: "math", value: line.slice(i, i + 2), start: i, end: i + 2 });
+            i += 2;
+            continue;
+        }
+
+        if (/[0-9]/.test(chunk)) {
+            i++;
+            while (i < line.length && /[0-9.,]/.test(line.charAt(i))) {
+                i++;
+            }
+            tokens.push({ type: "number", value: line.slice(start, i), start: start, end: i });
+            continue;
+        }
+
+        if (/[A-Za-zÀ-ÿ]/.test(chunk)) {
+            i++;
+            while (i < line.length && /[A-Za-zÀ-ÿ]/.test(line.charAt(i))) {
+                i++;
+            }
+            tokens.push({ type: "word", value: line.slice(start, i), start: start, end: i });
+            continue;
+        }
+
+        if ("()+-*/^=<>".indexOf(chunk) !== -1) {
+            tokens.push({ type: "math", value: chunk, start: i, end: i + 1 });
+            i++;
+            continue;
+        }
+
+        tokens.push({ type: "other", value: chunk, start: i, end: i + 1 });
+        i++;
+    }
+
+    return tokens;
+}
+
+function canStartMathSegment(token) {
+    return token.type !== "space" && token.type !== "other";
+}
+
+function isMathCandidateToken(token) {
+    return token.type !== "other";
+}
+
+function shouldRenderAsMath(parsedCandidate, trimmedCandidate, start, end, trimmedStart, trimmedEnd) {
+    if (!parsedCandidate || !trimmedCandidate) {
+        return false;
+    }
+
+    if (containsStructuredMath(parsedCandidate.ast)) {
+        return true;
+    }
+
+    if (trimmedStart === -1) {
+        return false;
+    }
+
+    var coversWholeLine = start === trimmedStart && end === trimmedEnd;
+    if (!coversWholeLine) {
+        return false;
+    }
+
+    return isStandaloneMathAtom(parsedCandidate.tokens);
+}
+
+function containsStructuredMath(node) {
+    if (!node) {
+        return false;
+    }
+
+    if (node.type === "binary" || node.type === "relation" || node.type === "unary" || node.type === "power" || node.type === "sqrt") {
+        return true;
+    }
+
+    return false;
+}
+
+function isStandaloneMathAtom(tokens) {
+    if (!tokens || tokens.length !== 1) {
+        return false;
+    }
+
+    if (tokens[0].type === "number") {
+        return true;
+    }
+
+    if (tokens[0].type === "name") {
+        return tokens[0].value.length <= 2 || tokens[0].value.toLowerCase() === "pi";
+    }
+
+    return false;
+}
+
+function tryParseMathExpression(expression) {
+    if (!expression) {
+        return null;
+    }
+
+    var tokens = tokenizeMathExpression(expression);
+    if (!tokens || tokens.length === 0) {
+        return null;
+    }
+
+    var state = {
+        tokens: tokens,
+        current: 0
+    };
+
+    var ast = parseRelationExpression(state);
+    if (!ast || state.current !== tokens.length) {
+        return null;
+    }
+
+    return {
+        ast: ast,
+        latex: astToLatex(ast),
+        tokens: tokens
+    };
+}
+
+function tokenizeMathExpression(expression) {
+    var tokens = [];
+    var i = 0;
+
+    while (i < expression.length) {
+        var start = i;
+        var chunk = expression.charAt(i);
+
+        if (/\s/.test(chunk)) {
+            i++;
+            continue;
+        }
+
+        if (expression.slice(i, i + 4).toLowerCase() === "sqrt" && !/[A-Za-zÀ-ÿ]/.test(expression.charAt(i + 4) || "")) {
+            tokens.push({ type: "sqrt", value: "sqrt", start: i, end: i + 4 });
+            i += 4;
+            continue;
+        }
+
+        if ((chunk === "<" || chunk === ">") && expression.charAt(i + 1) === "=") {
+            tokens.push({ type: "op", value: expression.slice(i, i + 2), start: i, end: i + 2 });
+            i += 2;
+            continue;
+        }
+
+        if (/[0-9]/.test(chunk)) {
+            var previousMathToken = tokens.length > 0 ? tokens[tokens.length - 1] : null;
+
+            if (previousMathToken && previousMathToken.type === "sqrt") {
+                i++;
+                tokens.push({ type: "number", value: expression.slice(start, i), start: start, end: i });
+                continue;
+            }
+
+            i++;
+            while (i < expression.length && /[0-9.,]/.test(expression.charAt(i))) {
+                i++;
+            }
+            tokens.push({ type: "number", value: expression.slice(start, i), start: start, end: i });
+            continue;
+        }
+
+        if (/[A-Za-zÀ-ÿ]/.test(chunk)) {
+            i++;
+            while (i < expression.length && /[A-Za-zÀ-ÿ]/.test(expression.charAt(i))) {
+                i++;
+            }
+            tokens.push({ type: "name", value: expression.slice(start, i), start: start, end: i });
+            continue;
+        }
+
+        if ("()+-*/^=<>".indexOf(chunk) !== -1) {
+            tokens.push({ type: "op", value: chunk, start: i, end: i + 1 });
+            i++;
+            continue;
+        }
+
+        return null;
+    }
+
+    return tokens;
+}
+
+function parseRelationExpression(state) {
+    var node = parseAdditiveExpression(state);
+    if (!node) {
+        return null;
+    }
+
+    while (matchOperator(state, "=") || matchOperator(state, "<") || matchOperator(state, ">") || matchOperator(state, "<=") || matchOperator(state, ">=")) {
+        var operator = previousToken(state).value;
+        var rightNode = parseAdditiveExpression(state);
+        if (!rightNode) {
+            return null;
+        }
+        node = { type: "relation", operator: operator, left: node, right: rightNode };
+    }
+
+    return node;
+}
+
+function parseAdditiveExpression(state) {
+    var node = parseMultiplicativeExpression(state);
+    if (!node) {
+        return null;
+    }
+
+    while (matchOperator(state, "+") || matchOperator(state, "-")) {
+        var operator = previousToken(state).value;
+        var rightNode = parseMultiplicativeExpression(state);
+        if (!rightNode) {
+            return null;
+        }
+        node = { type: "binary", operator: operator, left: node, right: rightNode };
+    }
+
+    return node;
+}
+
+function parseMultiplicativeExpression(state) {
+    var node = parseUnaryExpression(state);
+    if (!node) {
+        return null;
+    }
+
+    while (true) {
+        if (matchOperator(state, "*")) {
+            var explicitRight = parseUnaryExpression(state);
+            if (!explicitRight) {
+                return null;
+            }
+            node = { type: "binary", operator: "*", implicit: false, left: node, right: explicitRight };
+            continue;
+        }
+
+        if (matchOperator(state, "/")) {
+            var divisionRight = parseUnaryExpression(state);
+            if (!divisionRight) {
+                return null;
+            }
+            node = { type: "binary", operator: "/", left: node, right: divisionRight };
+            continue;
+        }
+
+        if (canImplicitMultiply(state)) {
+            var implicitRight = parseUnaryExpression(state);
+            if (!implicitRight) {
+                return null;
+            }
+            node = { type: "binary", operator: "*", implicit: true, left: node, right: implicitRight };
+            continue;
+        }
+
+        break;
+    }
+
+    return node;
+}
+
+function parseUnaryExpression(state) {
+    if (matchOperator(state, "+")) {
+        return parseUnaryExpression(state);
+    }
+
+    if (matchOperator(state, "-")) {
+        var value = parseUnaryExpression(state);
+        if (!value) {
+            return null;
+        }
+        return { type: "unary", operator: "-", value: value };
+    }
+
+    return parsePowerExpression(state);
+}
+
+function parsePowerExpression(state) {
+    var node = parsePrimaryExpression(state);
+    if (!node) {
+        return null;
+    }
+
+    if (matchOperator(state, "^")) {
+        var exponent = parseUnaryExpression(state);
+        if (!exponent) {
+            return null;
+        }
+        node = { type: "power", base: node, exponent: exponent };
+    }
+
+    return node;
+}
+
+function parsePrimaryExpression(state) {
+    if (matchOperator(state, "(")) {
+        var innerNode = parseRelationExpression(state);
+        if (!innerNode || !matchOperator(state, ")")) {
+            return null;
+        }
+        return innerNode;
+    }
+
+    if (matchType(state, "sqrt")) {
+        var rootIndex = null;
+        if (shouldUseRootIndex(state)) {
+            rootIndex = advanceToken(state).value;
+        }
+
+        var rootValue = parseRootArgument(state);
+        if (!rootValue) {
+            return null;
+        }
+
+        return { type: "sqrt", index: rootIndex, value: rootValue };
+    }
+
+    if (matchType(state, "number")) {
+        return { type: "number", value: previousToken(state).value };
+    }
+
+    if (matchType(state, "name")) {
+        return { type: "name", value: previousToken(state).value };
+    }
+
+    return null;
+}
+
+function shouldUseRootIndex(state) {
+    var current = peekToken(state);
+    var following = peekToken(state, 1);
+
+    if (!current || current.type !== "number" || !following) {
+        return false;
+    }
+
+    return canStartPrimaryToken(following);
+}
+
+function parseRootArgument(state) {
+    if (!peekToken(state)) {
+        return null;
+    }
+
+    if (peekToken(state).type === "op" && peekToken(state).value === "(") {
+        return parsePrimaryExpression(state);
+    }
+
+    var node = parseUnaryExpression(state);
+    if (!node) {
+        return null;
+    }
+
+    while (canImplicitMultiply(state)) {
+        var rightNode = parseUnaryExpression(state);
+        if (!rightNode) {
+            return null;
+        }
+        node = { type: "binary", operator: "*", implicit: true, left: node, right: rightNode };
+    }
+
+    return node;
+}
+
+function canImplicitMultiply(state) {
+    var previous = previousToken(state);
+    var next = peekToken(state);
+
+    if (!previous || !next || !canEndPrimaryToken(previous) || !canStartPrimaryToken(next)) {
+        return false;
+    }
+
+    return previous.end === next.start;
+}
+
+function canStartPrimaryToken(token) {
+    if (!token) {
+        return false;
+    }
+
+    return token.type === "number" || token.type === "name" || token.type === "sqrt" || (token.type === "op" && token.value === "(");
+}
+
+function canEndPrimaryToken(token) {
+    if (!token) {
+        return false;
+    }
+
+    return token.type === "number" || token.type === "name" || (token.type === "op" && token.value === ")");
+}
+
+function matchOperator(state, operator) {
+    var current = peekToken(state);
+    if (current && current.type === "op" && current.value === operator) {
+        state.current++;
+        return true;
+    }
+    return false;
+}
+
+function matchType(state, type) {
+    var current = peekToken(state);
+    if (current && current.type === type) {
+        state.current++;
+        return true;
+    }
+    return false;
+}
+
+function advanceToken(state) {
+    state.current++;
+    return state.tokens[state.current - 1];
+}
+
+function peekToken(state, offset) {
+    var index = state.current + (offset || 0);
+    return state.tokens[index] || null;
+}
+
+function previousToken(state) {
+    return state.tokens[state.current - 1] || null;
+}
+
+function astToLatex(node) {
+    if (!node) {
+        return "";
+    }
+
+    if (node.type === "number" || node.type === "name") {
+        return node.value;
+    }
+
+    if (node.type === "sqrt") {
+        var rootValue = astToLatex(node.value);
+        if (!node.index || node.index === "2") {
+            return "\\sqrt{" + rootValue + "}";
+        }
+        return "\\sqrt[" + node.index + "]{" + rootValue + "}";
+    }
+
+    if (node.type === "unary") {
+        var unaryValue = astToLatex(node.value);
+        if (needsParenthesesInUnary(node.value)) {
+            unaryValue = wrapWithParentheses(unaryValue);
+        }
+        return "-" + unaryValue;
+    }
+
+    if (node.type === "power") {
+        var baseLatex = astToLatex(node.base);
+        if (needsParenthesesInPowerBase(node.base)) {
+            baseLatex = wrapWithParentheses(baseLatex);
+        }
+        return baseLatex + "^{" + astToLatex(node.exponent) + "}";
+    }
+
+    if (node.type === "relation") {
+        return astToLatex(node.left) + relationOperatorToLatex(node.operator) + astToLatex(node.right);
+    }
+
+    if (node.type === "binary") {
+        if (node.operator === "/") {
+            return "\\frac{" + astToLatex(node.left) + "}{" + astToLatex(node.right) + "}";
+        }
+
+        if (node.operator === "*") {
+            var leftProduct = astToLatex(node.left);
+            var rightProduct = astToLatex(node.right);
+
+            if (needsParenthesesInProduct(node.left)) {
+                leftProduct = wrapWithParentheses(leftProduct);
+            }
+            if (needsParenthesesInProduct(node.right)) {
+                rightProduct = wrapWithParentheses(rightProduct);
+            }
+
+            return node.implicit ? leftProduct + rightProduct : leftProduct + "\\cdot " + rightProduct;
+        }
+
+        var leftValue = astToLatex(node.left);
+        var rightValue = astToLatex(node.right);
+        if (node.operator === "-" && needsParenthesesInSubtraction(node.right)) {
+            rightValue = wrapWithParentheses(rightValue);
+        }
+        return leftValue + node.operator + rightValue;
+    }
+
+    return "";
+}
+
+function relationOperatorToLatex(operator) {
+    if (operator === "<=") {
+        return "\\le ";
+    }
+    if (operator === ">=") {
+        return "\\ge ";
+    }
+    return operator;
+}
+
+function needsParenthesesInUnary(node) {
+    return node && (node.type === "binary" || node.type === "relation" || node.type === "unary");
+}
+
+function needsParenthesesInPowerBase(node) {
+    return node && (node.type === "binary" || node.type === "relation" || node.type === "unary");
+}
+
+function needsParenthesesInProduct(node) {
+    return node && (node.type === "binary" && (node.operator === "+" || node.operator === "-") || node.type === "relation");
+}
+
+function needsParenthesesInSubtraction(node) {
+    return node && ((node.type === "binary" && (node.operator === "+" || node.operator === "-")) || node.type === "relation");
+}
+
+function wrapWithParentheses(content) {
+    return "\\left(" + content + "\\right)";
 }
 
 // Función de debounce genérica
