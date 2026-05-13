@@ -3,16 +3,12 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exercicis de Mates</title>
+    <title>Página Mejorada</title>
     <script type="text/javascript" async
     src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.js">
     </script>
-    <script src="CorregirExercicis.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-    <script src="firebase-config.js"></script>
-    <script src="firebase-live.js"></script>
-    <link rel="stylesheet" type="text/css" href="gameDictado.css">
+    <script src="CorregirExercicis2nE.js"></script>
+    <link rel="stylesheet" type="text/css" href="../gameDictado.css">
     
     <!-- Añadir estilos personalizados -->
     <style>
@@ -32,7 +28,7 @@
         border-radius: 10px;
         padding: 20px;
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        width: 80%;
+        width: 85%;
         max-width: 850px;
         text-align: center;
         max-height: 80vh; /* Limitar la altura máxima del contenedor */
@@ -70,21 +66,16 @@
     </style>
   </head>
   
-  <body oncopy="return false" onpaste="return false">
+  <body oncopy="return false" onpaste="return false" onblur="EnviarInfo()">
     <div id="container">
       <h1>Exercicis de Matemàtiques</h1>
       <!-- El contenido dinámico se generará aquí -->
     </div>
 
     <script type="text/javascript">
-      window.addEventListener("load", iniciarProces);
-      document.addEventListener("visibilitychange", function () {
-        if (document.visibilityState === "hidden") {
-          GestionarBlur();
-        }
-      });
-      window.addEventListener("pagehide", GestionarBlur);
+      window.onload = iniciarProces();
     </script>
   </body>
 </html>
+
 

@@ -1,0 +1,50 @@
+{
+  "rules": {
+    "live": {
+      ".read": true,
+      "$grup": {
+        ".indexOn": ["updatedAt"],
+        "$id": {
+          ".write": true,
+          ".validate": "newData.exists() ? newData.hasChildren(['grup', 'alumne', 'preguntaTitol', 'pregunta', 'preview', 'resposta', 'updatedAt']) : true",
+          "grup": {
+            ".validate": "newData.isString() && newData.val().length <= 10"
+          },
+          "alumne": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "apartat": {
+            ".validate": "newData.isString() && newData.val().length <= 200"
+          },
+          "preguntaTitol": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "pregunta": {
+            ".validate": "newData.isString() && newData.val().length <= 2000"
+          },
+          "preview": {
+            ".validate": "newData.isString() && newData.val().length <= 500"
+          },
+          "resposta": {
+            ".validate": "newData.isString() && newData.val().length <= 12000"
+          },
+          "tipusCorreccio": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "id": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "exerciciId": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    }
+  }
+}

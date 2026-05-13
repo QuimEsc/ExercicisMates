@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seguiment en viu</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --text: #1f2933;
+      --muted: #667085;
+      --line: #dde3ea;
+      --green: #18a058;
+      --yellow: #c98900;
+      --gray: #7a8699;
+      --blue: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+      padding: 16px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .topbar {
+      align-items: center;
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      margin: 0 auto;
+      max-width: 1180px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filters button {
+      background: #eef2f7;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 8px 12px;
+    }
+
+    .filters button.active {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+
+    main {
+      margin: 0 auto;
+      max-width: 1180px;
+      padding: 18px 20px 32px;
+    }
+
+    .status-line {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .table-wrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: auto;
+    }
+
+    table {
+      border-collapse: collapse;
+      min-width: 880px;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fafc;
+      color: #344054;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    tbody tr {
+      cursor: pointer;
+    }
+
+    tbody tr:hover {
+      background: #f8fbff;
+    }
+
+    .pill {
+      border-radius: 999px;
+      color: white;
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 58px;
+      padding: 4px 8px;
+      text-align: center;
+    }
+
+    .active-now {
+      background: var(--green);
+    }
+
+    .recent {
+      background: var(--yellow);
+    }
+
+    .stale {
+      background: var(--gray);
+    }
+
+    .group {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .question {
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .preview {
+      max-width: 330px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 28px;
+      text-align: center;
+    }
+
+    .modal-backdrop {
+      align-items: center;
+      background: rgba(15, 23, 42, 0.56);
+      display: none;
+      inset: 0;
+      justify-content: center;
+      padding: 20px;
+      position: fixed;
+      z-index: 5;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 8px;
+      max-height: 88vh;
+      max-width: 880px;
+      overflow: auto;
+      padding: 20px;
+      width: 100%;
+    }
+
+    .modal-head {
+      align-items: flex-start;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .modal h2 {
+      font-size: 20px;
+      margin: 0 0 4px;
+    }
+
+    .modal .meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .close {
+      background: #f2f4f7;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 18px;
+      height: 34px;
+      line-height: 1;
+      width: 34px;
+    }
+
+    .detail-block {
+      border-top: 1px solid var(--line);
+      margin-top: 14px;
+      padding-top: 14px;
+    }
+
+    .detail-block h3 {
+      font-size: 14px;
+      margin: 0 0 8px;
+      text-transform: uppercase;
+    }
+
+    .detail-text {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      line-height: 1.5;
+      margin: 0;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 720px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      h1 {
+        font-size: 19px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <h1>Seguiment en viu</h1>
+      <div class="filters" id="filters">
+        <button class="active" data-filter="all">Tots</button>
+        <button data-filter="T1">T1</button>
+        <button data-filter="T2">T2</button>
+        <button data-filter="T3">T3</button>
+        <button data-filter="T4">T4</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="status-line" id="statusLine">Connectant...</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Estat</th>
+            <th>Grup</th>
+            <th>Alumne</th>
+            <th>Pregunta</th>
+            <th>Resposta</th>
+            <th>Actualització</th>
+          </tr>
+        </thead>
+        <tbody id="liveRows"></tbody>
+      </table>
+      <div class="empty" id="emptyState">Encara no hi ha activitat en viu.</div>
+    </div>
+  </main>
+
+  <div class="modal-backdrop" id="modalBackdrop">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalTitle"></h2>
+          <div class="meta" id="modalMeta"></div>
+        </div>
+        <button class="close" id="closeModal" aria-label="Tancar">x</button>
+      </div>
+      <div class="detail-block">
+        <h3>Pregunta</h3>
+        <p class="detail-text" id="modalQuestion"></p>
+      </div>
+      <div class="detail-block">
+        <h3>Resposta en curs</h3>
+        <p class="detail-text" id="modalAnswer"></p>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script>
+    if (!window.firebase || !window.firebaseConfig) {
+      document.getElementById("statusLine").textContent = "Firebase no s'ha carregat. Revisa la connexió.";
+      throw new Error("Firebase no s'ha carregat.");
+    }
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(window.firebaseConfig);
+    }
+    const db = firebase.database();
+    const rowsEl = document.getElementById("liveRows");
+    const emptyState = document.getElementById("emptyState");
+    const statusLine = document.getElementById("statusLine");
+    const filters = document.getElementById("filters");
+    const modalBackdrop = document.getElementById("modalBackdrop");
+    const closeModal = document.getElementById("closeModal");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalMeta = document.getElementById("modalMeta");
+    const modalQuestion = document.getElementById("modalQuestion");
+    const modalAnswer = document.getElementById("modalAnswer");
+
+    let currentFilter = "all";
+    let liveItems = [];
+
+    function escapeText(text) {
+      return (text || "").toString();
+    }
+
+    function formatClock(timestamp) {
+      if (!timestamp) {
+        return "-";
+      }
+      return new Date(timestamp).toLocaleTimeString("ca-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    function formatRelative(timestamp) {
+      if (!timestamp) {
+        return "-";
+      }
+
+      const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+      if (seconds < 5) {
+        return "ara mateix";
+      }
+      if (seconds < 60) {
+        return `fa ${seconds} s`;
+      }
+
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) {
+        return `fa ${minutes} min`;
+      }
+
+      const hours = Math.floor(minutes / 60);
+      return `fa ${hours} h`;
+    }
+
+    function getStatus(item) {
+      const seconds = Math.max(0, Math.floor((Date.now() - item.updatedAt) / 1000));
+      if (seconds <= 35) {
+        return { className: "active-now", label: "Actiu" };
+      }
+      if (seconds <= 120) {
+        return { className: "recent", label: "Recent" };
+      }
+      return { className: "stale", label: "Parat" };
+    }
+
+    function visibleItems() {
+      return liveItems
+        .filter((item) => currentFilter === "all" || item.grup === currentFilter)
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    }
+
+    function render() {
+      const items = visibleItems();
+      rowsEl.innerHTML = "";
+      emptyState.style.display = items.length ? "none" : "block";
+      statusLine.textContent = `${items.length} registres visibles de ${liveItems.length} totals`;
+
+      for (const item of items) {
+        const status = getStatus(item);
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><span class="pill ${status.className}">${status.label}</span></td>
+          <td class="group"></td>
+          <td></td>
+          <td class="question"></td>
+          <td class="preview"></td>
+          <td title="${formatClock(item.updatedAt)}">${formatRelative(item.updatedAt)}</td>
+        `;
+        row.children[1].textContent = escapeText(item.grup);
+        row.children[2].textContent = escapeText(item.alumne);
+        row.children[3].textContent = escapeText(item.preguntaTitol || "Pregunta");
+        row.children[4].textContent = escapeText(item.preview || "sense text encara");
+        row.addEventListener("click", () => openModal(item));
+        rowsEl.appendChild(row);
+      }
+    }
+
+    function flattenLiveData(data) {
+      const result = [];
+      for (const grup of Object.keys(data || {})) {
+        for (const key of Object.keys(data[grup] || {})) {
+          const item = data[grup][key];
+          if (item && typeof item === "object") {
+            result.push({ ...item, key });
+          }
+        }
+      }
+      return result;
+    }
+
+    function openModal(item) {
+      modalTitle.textContent = `${item.grup || ""} | ${item.alumne || ""}`;
+      modalMeta.textContent = `${item.preguntaTitol || "Pregunta"} | ${formatClock(item.updatedAt)} | ${formatRelative(item.updatedAt)}`;
+      modalQuestion.textContent = item.pregunta || "Sense pregunta";
+      modalAnswer.textContent = item.resposta || "Sense resposta encara";
+      modalBackdrop.classList.add("open");
+    }
+
+    function hideModal() {
+      modalBackdrop.classList.remove("open");
+    }
+
+    filters.addEventListener("click", function (event) {
+      const button = event.target.closest("button[data-filter]");
+      if (!button) {
+        return;
+      }
+      currentFilter = button.dataset.filter;
+      for (const item of filters.querySelectorAll("button")) {
+        item.classList.toggle("active", item === button);
+      }
+      render();
+    });
+
+    modalBackdrop.addEventListener("click", function (event) {
+      if (event.target === modalBackdrop) {
+        hideModal();
+      }
+    });
+    closeModal.addEventListener("click", hideModal);
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        hideModal();
+      }
+    });
+
+    db.ref("live").on("value", function (snapshot) {
+      liveItems = flattenLiveData(snapshot.val());
+      render();
+    }, function (err) {
+      statusLine.textContent = "No s'ha pogut llegir Firebase.";
+      console.warn(err);
+    });
+
+    window.setInterval(render, 5000);
+  </script>
+</body>
+</html>

@@ -10,6 +10,8 @@
         'https://script.google.com/macros/s/AKfycbxqHmK7Tfp4GlWK664y_YH_lkwnkfeeOkSXCiAthi4QWsb9gT6DNkk7b7TJP3sUF3EROQ/exec',
         'https://script.google.com/macros/s/AKfycbztPjI8M7LbhdtE5zcwzBsYiLjRUP71xE5MbDzgFCl___ilA5APHRVaxZYKCozrcJY/exec'
     ]
+    var GrupsSeguiment = ["T1", "T2", "T3", "T4"];
+    var grupSeguiment = "";
     
     const urlParams = new URLSearchParams(window.location.search);
     const servidor = urlParams.get('opcio');
@@ -17,21 +19,73 @@
     // Redirige al servidor correspondiente
     if (servidor === '0') {
         var url = Servidor[0];
+        grupSeguiment = GrupsSeguiment[0];
     } else if (servidor === '1') {
         var url = Servidor[1];;
+        grupSeguiment = GrupsSeguiment[1];
     } else if (servidor === '2') {
         var url = Servidor[2];;
+        grupSeguiment = GrupsSeguiment[2];
     } else if (servidor === '3') {
         var url = Servidor[3];;
+        grupSeguiment = GrupsSeguiment[3];
     } else {
         // Si no se especifica un servidor, redirige a un valor por defecto (servidor 1)
         window.location.href = 'https://quimesc.github.io/ExercicisMates';
     }
+    window.GrupSeguiment = grupSeguiment;
 
 
 //var url = 'https://script.google.com/macros/s/AKfycbztPjI8M7LbhdtE5zcwzBsYiLjRUP71xE5MbDzgFCl___ilA5APHRVaxZYKCozrcJY/exec';
 var url2 = 'https://script.google.com/macros/s/AKfycbyEL44Kh46RKxhH7FFx2hNwYxUa3vah2ZTSixPHbol0Eb1ixKhtVRyxV8RWD417j0w/exec';
 var RetrasEnviarResposta;
+var EnviamentPerSortidaEnProces = false;
+
+function normalitzarTipusCorreccio(tipusCorreccio) {
+    return (tipusCorreccio || "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+}
+
+function GestionarBlur() {
+    if (EnviamentPerSortidaEnProces) {
+        return;
+    }
+
+    var dadesGuardades = localStorage.getItem("Dades");
+    if (!dadesGuardades) {
+        return;
+    }
+
+    var Dades;
+    try {
+        Dades = JSON.parse(dadesGuardades);
+    } catch (err) {
+        console.warn("No s'ha pogut llegir Dades per al blur.", err);
+        return;
+    }
+
+    if (normalitzarTipusCorreccio(Dades.TipusCorreccio) !== "teoria") {
+        return;
+    }
+
+    try {
+        EnviamentPerSortidaEnProces = true;
+        if (localStorage.getItem("Resposta") == null) {
+            ComencaRutina();
+        }
+
+        if (localStorage.getItem("Resposta") != null) {
+            EnviarInfo();
+        }
+    } catch (err) {
+        EnviamentPerSortidaEnProces = false;
+        console.warn("No s'ha pogut enviar la resposta en perdre el focus.", err);
+    }
+}
+
 function corregir(original, contenido)	{
     var pos1=0;
     var pos2=0;
@@ -41,6 +95,10 @@ function corregir(original, contenido)	{
     var aux="";
     numfallos=0;
     var error=0;
+    if(typeof(contenido) !== 'string'){
+      var contenido=contenido.toString();
+    }
+    var respostaOriginalAlumne = contenido;
     var contenido=contenido.trim();
         
         
@@ -112,7 +170,8 @@ if(typeof(original) === 'number'){
 //CÀLCUL DEL % D'ERROR PER PARAULA.
 //ModAux posa un * a les paraules que son incorrectes
         var Dades = JSON.parse(localStorage.getItem("Dades"));	
-        if(Dades.TipusCorreccio == "Paraula"){
+        var tipusCorreccio = normalitzarTipusCorreccio(Dades.TipusCorreccio);
+        if(tipusCorreccio == "paraula"){
             modAux = replaceAll(modAux,"<span class='txtFalta'>","*");
             modAux = replaceAll(modAux,"<span class='txtSobra'>","*");
             modAux = replaceAll(modAux,"<span class='txtError'>","*");
@@ -177,16 +236,16 @@ if(typeof(original) === 'number'){
 
             var PorcentajePalabrasCorrectas = numPalabrasCorrectas/numPalabrasTotal;
                 var Resultat = {
-                  Resposta: contenido,
+                  Resposta: respostaOriginalAlumne,
                   PercentatgeAcert: PorcentajePalabrasCorrectas
                 };
 
             if(localStorage.getItem("Resposta") == null){
                     localStorage.setItem("Resposta", JSON.stringify(Resultat)  );  //Guarda les respostes en Magatzenament Local
                 }
-        }else if(Dades.TipusCorreccio == "Test" || Dades.TipusCorreccio == "Teoria"){
+        }else if(tipusCorreccio == "test" || tipusCorreccio == "teoria"){
             var Resultat = {
-                  Resposta: contenido,
+                  Resposta: respostaOriginalAlumne,
                   PercentatgeAcert: 1
                 };
 
@@ -197,7 +256,7 @@ if(typeof(original) === 'number'){
             var LevenshteinPerc = calculateImprovedLevenshteinDistance(original, contenido);
             if(LevenshteinPerc!=1){var LevenshteinPerc=0}
                 var Resultat = {
-                  Resposta: contenido,
+                  Resposta: respostaOriginalAlumne,
                   PercentatgeAcert: LevenshteinPerc
                 };
 
@@ -515,6 +574,14 @@ function ComencaRutina(){
         return y;
       };
 
+    const prepararRespostaAlumne = function(resposta, tipusCorreccio){
+        var respostaPreparada = resposta;
+        if(tipusCorreccio === "paraula"){
+            respostaPreparada = respostaPreparada.replace(/ /g, "").replace(/<br>/g, "");
+        }
+        return LlevarCodiHtml(respostaPreparada);
+      };
+
     const autocorreccio = function(RespostaAlumne){
         function ActualitzarDades(Resultat){
             if(localStorage.getItem("Resposta") == null){
@@ -595,10 +662,11 @@ function ComencaRutina(){
 
       //Canvi Nom text i reprodueix audio
     var Dades = JSON.parse(localStorage.getItem("Dades"));   //Carrega tota la info del Magatzem local
+    var tipusCorreccio = normalitzarTipusCorreccio(Dades.TipusCorreccio);
     var RespostaAlumne = obtenerRespuestaAlumno(); // Resposta alumne.
 
-    if(Dades.TipusCorreccio === "Teoria"){
-        var RespostaTeoricaTeoria = LlevarCodiHtml(RespostaAlumne.replace(/ /g, "").replace(/<br>/g, ""));
+    if(tipusCorreccio === "teoria"){
+        var RespostaTeoricaTeoria = prepararRespostaAlumne(RespostaAlumne, tipusCorreccio);
         var ResultatTeoria = {
             Resposta: RespostaTeoricaTeoria,
             Correction: "",
@@ -618,8 +686,8 @@ function ComencaRutina(){
         return;
     }
       
-    if(Dades.TipusCorreccio !== "AutoAvaluacio"){
-        var RespostaTeorica = LlevarCodiHtml(RespostaAlumne.replace(/ /g, "").replace(/<br>/g, ""));  //Resposta del Quadre de text
+    if(tipusCorreccio !== "autoavaluacio"){
+        var RespostaTeorica = prepararRespostaAlumne(RespostaAlumne, tipusCorreccio);  //Resposta del Quadre de text
         var Resposta =  Dades.Resposta;
         console.log(RespostaTeorica);
         var CorreccioArray = corregir(Resposta, RespostaTeorica);  //[HTML correccio, % acert]
@@ -670,6 +738,10 @@ function EnviarInfo(){
            Percen: Respostes.PercentatgeAcert,
            IP: UserIp
            };
+
+        if (window.SeguimentLive && typeof window.SeguimentLive.esborrarActual === "function") {
+            window.SeguimentLive.esborrarActual();
+        }
    
         //BORRA LocalStore
         localStorage.clear();
