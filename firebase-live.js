@@ -9,6 +9,7 @@ function seguimentNormalitzarText(text) {
     .toString()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .trim()
     .toLowerCase();
 }
 
@@ -69,6 +70,14 @@ function seguimentCompactarEspais(text) {
   return (text || "").toString().replace(/\s+/g, " ").trim();
 }
 
+function seguimentLimitarText(text, maxChars) {
+  const value = (text || "").toString();
+  if (value.length <= maxChars) {
+    return value;
+  }
+  return value.slice(0, maxChars - 1) + "…";
+}
+
 function seguimentGetRespostaActual() {
   const editor = document.getElementById("Camp");
   return editor ? editor.innerText : "";
@@ -107,12 +116,12 @@ function seguimentGetSnapshot() {
   return {
     grup: grup,
     alumne: alumne,
-    apartat: seguimentStripHtml(Dades.Apartat || ""),
+    apartat: seguimentLimitarText(seguimentStripHtml(Dades.Apartat || ""), 200),
     preguntaTitol: Dades.ID_Exercici ? `Pregunta ${Dades.ID_Exercici}` : "Pregunta",
-    pregunta: seguimentStripHtml(Dades.Questio || ""),
+    pregunta: seguimentLimitarText(seguimentStripHtml(Dades.Questio || ""), 2000),
     preview: seguimentGetUltimesParaules(resposta, previewWords),
     resposta: resposta,
-    tipusCorreccio: Dades.TipusCorreccio || "",
+    tipusCorreccio: seguimentLimitarText(Dades.TipusCorreccio || "", 40),
     id: (Dades.ID || "").toString(),
     exerciciId: exerciciId,
     updatedAt: Date.now()
@@ -208,7 +217,25 @@ try {
   window.SeguimentLive = {
     enviarAra: seguimentEnviarAra,
     esborrarActual: seguimentEsborrarActual,
-    iniciarSeguiment: seguimentIniciar
+    iniciarSeguiment: seguimentIniciar,
+    provaFirebase: function () {
+      if (!SeguimentDb) {
+        return Promise.reject(new Error("Firebase no inicialitzat."));
+      }
+      return SeguimentDb.ref("live/TEST/prova_manual").set({
+        grup: "TEST",
+        alumne: "Prova manual",
+        apartat: "Diagnosi",
+        preguntaTitol: "Pregunta prova",
+        pregunta: "Si veus aquesta fila, Firebase escriu i seguiment.html llegeix correctament.",
+        preview: "prova de connexio firebase",
+        resposta: "Aquesta entrada es pot esborrar des de Firebase Data.",
+        tipusCorreccio: "Test",
+        id: "prova",
+        exerciciId: "prova",
+        updatedAt: Date.now()
+      });
+    }
   };
 
   window.addEventListener("load", seguimentIniciar);

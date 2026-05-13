@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prova Firebase</title>
+  <style>
+    body {
+      background: #f4f6f8;
+      color: #1f2933;
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 0;
+      padding: 32px;
+    }
+
+    main {
+      background: white;
+      border: 1px solid #dde3ea;
+      border-radius: 8px;
+      margin: 0 auto;
+      max-width: 720px;
+      padding: 22px;
+    }
+
+    button {
+      background: #2563eb;
+      border: 0;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 8px;
+      padding: 10px 14px;
+    }
+
+    button.secondary {
+      background: #667085;
+    }
+
+    #status {
+      background: #f8fafc;
+      border: 1px solid #dde3ea;
+      border-radius: 6px;
+      margin-top: 16px;
+      min-height: 48px;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Prova Firebase</h1>
+    <p>Aquesta pàgina escriu una fila de prova en <code>live/TEST/prova_manual</code>.</p>
+    <button id="writeTest">Enviar prova</button>
+    <button class="secondary" id="deleteTest">Esborrar prova</button>
+    <div id="status">Preparat.</div>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script>
+    const statusEl = document.getElementById("status");
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    if (!window.firebase || !window.firebaseConfig) {
+      setStatus("Firebase no s'ha carregat. Revisa connexió o scripts.");
+      throw new Error("Firebase no carregat.");
+    }
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(window.firebaseConfig);
+    }
+
+    const db = firebase.database();
+    const path = "live/TEST/prova_manual";
+
+    document.getElementById("writeTest").addEventListener("click", function () {
+      setStatus("Enviant prova...");
+      db.ref(path).set({
+        grup: "TEST",
+        alumne: "Prova manual",
+        apartat: "Diagnosi",
+        preguntaTitol: "Pregunta prova",
+        pregunta: "Si veus aquesta fila, Firebase escriu i seguiment.html llegeix correctament.",
+        preview: "prova de connexio firebase",
+        resposta: "Aquesta entrada confirma que les regles permeten escriure en Realtime Database.",
+        tipusCorreccio: "Test",
+        id: "prova",
+        exerciciId: "prova",
+        updatedAt: Date.now()
+      }).then(function () {
+        setStatus("OK. Ara obri seguiment.html i hauries de veure una fila TEST.");
+      }).catch(function (err) {
+        setStatus("ERROR escrivint Firebase:\n" + err.message);
+        console.warn(err);
+      });
+    });
+
+    document.getElementById("deleteTest").addEventListener("click", function () {
+      setStatus("Esborrant prova...");
+      db.ref(path).remove().then(function () {
+        setStatus("Prova esborrada.");
+      }).catch(function (err) {
+        setStatus("ERROR esborrant Firebase:\n" + err.message);
+        console.warn(err);
+      });
+    });
+  </script>
+</body>
+</html>
