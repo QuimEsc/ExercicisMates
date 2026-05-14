@@ -338,9 +338,43 @@
 
     let currentFilter = "all";
     let liveItems = [];
+    let totalLiveItems = 0;
+    let cleanupInProgress = false;
+    const MS_HORA = 60 * 60 * 1000;
+    const DEFAULT_TTL_MS = 48 * MS_HORA;
 
     function escapeText(text) {
       return (text || "").toString();
+    }
+
+    function getTtlMs() {
+      const hours = Number(window.LIVE_PENDING_TTL_HOURS);
+      return Number.isFinite(hours) && hours > 0 ? hours * MS_HORA : DEFAULT_TTL_MS;
+    }
+
+    function getCleanupIntervalMs() {
+      const interval = Number(window.LIVE_CLEANUP_INTERVAL_MS);
+      return Number.isFinite(interval) && interval > 0 ? Math.max(interval, 60000) : MS_HORA;
+    }
+
+    function isExpired(item, cutoff) {
+      const updatedAt = Number(item && item.updatedAt);
+      return !Number.isFinite(updatedAt) || updatedAt <= cutoff;
+    }
+
+    function getIdentity(item) {
+      const base = [
+        item.groupKey || item.grup || "",
+        item.alumne || ""
+      ];
+      const id = item.id || "";
+      const exerciciId = item.exerciciId || "";
+
+      if (id || exerciciId) {
+        return base.concat([id, exerciciId]).join("|");
+      }
+
+      return base.concat([item.preguntaTitol || "", item.pregunta || ""]).join("|");
     }
 
     function formatClock(timestamp) {
@@ -397,7 +431,7 @@
       const items = visibleItems();
       rowsEl.innerHTML = "";
       emptyState.style.display = items.length ? "none" : "block";
-      statusLine.textContent = `${items.length} registres visibles de ${liveItems.length} totals`;
+      statusLine.textContent = `${items.length} registres visibles de ${totalLiveItems} totals`;
 
       for (const item of items) {
         const status = getStatus(item);
@@ -425,11 +459,60 @@
         for (const key of Object.keys(data[grup] || {})) {
           const item = data[grup][key];
           if (item && typeof item === "object") {
-            result.push({ ...item, key });
+            result.push({ ...item, key, groupKey: grup });
           }
         }
       }
       return result;
+    }
+
+    function processLiveItems(items) {
+      const cutoff = Date.now() - getTtlMs();
+      const visibleByIdentity = new Map();
+      const updates = {};
+
+      for (const item of items) {
+        const firebasePath = `${item.groupKey}/${item.key}`;
+        if (isExpired(item, cutoff)) {
+          updates[firebasePath] = null;
+          continue;
+        }
+
+        const identity = getIdentity(item);
+        const previous = visibleByIdentity.get(identity);
+        if (!previous) {
+          visibleByIdentity.set(identity, item);
+          continue;
+        }
+
+        if ((item.updatedAt || 0) > (previous.updatedAt || 0)) {
+          updates[`${previous.groupKey}/${previous.key}`] = null;
+          visibleByIdentity.set(identity, item);
+        } else {
+          updates[firebasePath] = null;
+        }
+      }
+
+      return {
+        items: Array.from(visibleByIdentity.values()),
+        updates
+      };
+    }
+
+    function cleanupFirebase(updates) {
+      const keys = Object.keys(updates);
+      if (!keys.length || cleanupInProgress) {
+        return;
+      }
+
+      cleanupInProgress = true;
+      db.ref("live").update(updates)
+        .catch(function (err) {
+          console.warn("No s'ha pogut netejar Firebase.", err);
+        })
+        .then(function () {
+          cleanupInProgress = false;
+        });
     }
 
     function openModal(item) {
@@ -469,7 +552,11 @@
     });
 
     db.ref("live").on("value", function (snapshot) {
-      liveItems = flattenLiveData(snapshot.val());
+      const rawItems = flattenLiveData(snapshot.val());
+      const processed = processLiveItems(rawItems);
+      totalLiveItems = rawItems.length;
+      liveItems = processed.items;
+      cleanupFirebase(processed.updates);
       render();
     }, function (err) {
       statusLine.textContent = "No s'ha pogut llegir Firebase.";
@@ -477,6 +564,12 @@
     });
 
     window.setInterval(render, 5000);
+    window.setInterval(function () {
+      const processed = processLiveItems(liveItems);
+      liveItems = processed.items;
+      cleanupFirebase(processed.updates);
+      render();
+    }, getCleanupIntervalMs());
   </script>
 </body>
 </html>

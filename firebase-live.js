@@ -3,6 +3,10 @@ let SeguimentLastPath = "";
 let SeguimentLastSignature = "";
 let SeguimentIntervalId = null;
 let SeguimentStartTimeoutId = null;
+let SeguimentCleanupIntervalId = null;
+let SeguimentCleanupInProgress = false;
+const SEGUIMENT_MS_HORA = 60 * 60 * 1000;
+const SEGUIMENT_DEFAULT_TTL_MS = 48 * SEGUIMENT_MS_HORA;
 
 function seguimentNormalitzarText(text) {
   return (text || "")
@@ -31,13 +35,14 @@ function seguimentSafeKey(value) {
   return key || "sense-dada";
 }
 
-function seguimentGetSessionId() {
-  let sessionId = sessionStorage.getItem("seguimentLiveSessionId");
-  if (!sessionId) {
-    sessionId = Math.random().toString(36).slice(2, 10);
-    sessionStorage.setItem("seguimentLiveSessionId", sessionId);
-  }
-  return sessionId;
+function seguimentGetTtlMs() {
+  const hours = Number(window.LIVE_PENDING_TTL_HOURS);
+  return Number.isFinite(hours) && hours > 0 ? hours * SEGUIMENT_MS_HORA : SEGUIMENT_DEFAULT_TTL_MS;
+}
+
+function seguimentGetCleanupIntervalMs() {
+  const interval = Number(window.LIVE_CLEANUP_INTERVAL_MS);
+  return Number.isFinite(interval) && interval > 0 ? Math.max(interval, 60000) : SEGUIMENT_MS_HORA;
 }
 
 function seguimentGetDades() {
@@ -132,11 +137,89 @@ function seguimentGetLivePath(snapshot) {
   const key = [
     snapshot.alumne,
     snapshot.id || "sense-id",
-    snapshot.exerciciId,
-    seguimentGetSessionId()
+    snapshot.exerciciId
   ].map(seguimentSafeKey).join("_");
 
   return `live/${seguimentSafeKey(snapshot.grup)}/${key}`;
+}
+
+function seguimentEsMateixaPregunta(item, snapshot) {
+  return item
+    && item.alumne === snapshot.alumne
+    && (item.id || "").toString() === (snapshot.id || "").toString()
+    && (item.exerciciId || "").toString() === (snapshot.exerciciId || "").toString();
+}
+
+function seguimentEsborrarDuplicats(snapshot, currentPath) {
+  if (!SeguimentDb || !snapshot || !currentPath) {
+    return Promise.resolve(0);
+  }
+
+  const groupPath = `live/${seguimentSafeKey(snapshot.grup)}`;
+  const currentKey = currentPath.split("/").pop();
+
+  return SeguimentDb.ref(groupPath).once("value")
+    .then(function (snapshotDb) {
+      const updates = {};
+      snapshotDb.forEach(function (child) {
+        const item = child.val();
+        if (child.key !== currentKey && seguimentEsMateixaPregunta(item, snapshot)) {
+          updates[child.key] = null;
+        }
+      });
+
+      const total = Object.keys(updates).length;
+      if (!total) {
+        return 0;
+      }
+
+      return SeguimentDb.ref(groupPath).update(updates).then(function () {
+        return total;
+      });
+    })
+    .catch(function (err) {
+      console.warn("No s'han pogut esborrar duplicats del seguiment.", err);
+      return 0;
+    });
+}
+
+function seguimentNetejarCaducats(grup) {
+  if (!SeguimentDb || SeguimentCleanupInProgress) {
+    return Promise.resolve(0);
+  }
+
+  const cutoff = Date.now() - seguimentGetTtlMs();
+  const ref = SeguimentDb.ref(`live/${seguimentSafeKey(grup || seguimentGetGrup())}`);
+  SeguimentCleanupInProgress = true;
+
+  return ref.orderByChild("updatedAt").endAt(cutoff).once("value")
+    .then(function (snapshotDb) {
+      const updates = {};
+      snapshotDb.forEach(function (child) {
+        const item = child.val();
+        const updatedAt = Number(item && item.updatedAt);
+        if (!Number.isFinite(updatedAt) || updatedAt <= cutoff) {
+          updates[child.key] = null;
+        }
+      });
+
+      const total = Object.keys(updates).length;
+      if (!total) {
+        return 0;
+      }
+
+      return ref.update(updates).then(function () {
+        return total;
+      });
+    })
+    .catch(function (err) {
+      console.warn("No s'ha pogut netejar el seguiment caducat.", err);
+      return 0;
+    })
+    .then(function (total) {
+      SeguimentCleanupInProgress = false;
+      return total;
+    });
 }
 
 function seguimentEnviarAra(force) {
@@ -160,6 +243,9 @@ function seguimentEnviarAra(force) {
     .then(function () {
       SeguimentLastPath = path;
       SeguimentLastSignature = signature;
+      if (force) {
+        seguimentEsborrarDuplicats(snapshot, path);
+      }
     })
     .catch(function (err) {
       console.warn("No s'ha pogut actualitzar el seguiment en viu.", err);
@@ -202,6 +288,13 @@ function seguimentIniciar() {
       seguimentEnviarAra(false);
     }, interval);
   }, jitter);
+
+  seguimentNetejarCaducats(seguimentGetGrup());
+  if (!SeguimentCleanupIntervalId) {
+    SeguimentCleanupIntervalId = window.setInterval(function () {
+      seguimentNetejarCaducats(seguimentGetGrup());
+    }, seguimentGetCleanupIntervalMs());
+  }
 }
 
 try {
@@ -218,6 +311,7 @@ try {
     enviarAra: seguimentEnviarAra,
     esborrarActual: seguimentEsborrarActual,
     iniciarSeguiment: seguimentIniciar,
+    netejarCaducats: seguimentNetejarCaducats,
     provaFirebase: function () {
       if (!SeguimentDb) {
         return Promise.reject(new Error("Firebase no inicialitzat."));
