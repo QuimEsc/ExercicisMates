@@ -50,7 +50,15 @@ function normalitzarTipusCorreccio(tipusCorreccio) {
         .toLowerCase();
 }
 
+function esPerfilProfe() {
+    return normalitzarTipusCorreccio(sessionStorage.getItem("NomAlumnes")) === "profe";
+}
+
 function GestionarBlur() {
+    if (esPerfilProfe()) {
+        return;
+    }
+
     if (EnviamentPerSortidaEnProces) {
         return;
     }
@@ -531,7 +539,26 @@ function calculateImprovedLevenshteinDistance(a, b) {
 function CrearDom(){
   //Crear el nou DOM
     var DivContainer = document.getElementById("container");  //Selecciona el ID de container
-    var HtmlContainer = "<h2 id=\"Apartat\"></h2><h3 id=\"Questio\"></h3><h3 id=\"Resposta\"></h3><h3 id=\"Correcio\"><div id=\"FormulaMath\"><p></p></div></h3><h3 id=\"Audio\"></h3><div id=\"Camp\" contenteditable=\"true\" style=\"border-style: inset; min-height:150px\"></div></br><div id =\"Btn\" ><p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"ComencaRutina()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Comprovar</span></span></p></div>";
+    var HtmlContainer = [
+        "<h2 id=\"Apartat\"></h2>",
+        "<div id=\"Questio\" class=\"exercise-question\"></div>",
+        "<section id=\"FormulaMathPanel\" class=\"math-preview-panel\" hidden>",
+        "<h3>Vista matematica</h3>",
+        "<div id=\"FormulaMath\" class=\"math-preview-output\"></div>",
+        "</section>",
+        "<section id=\"ProfessorCommentPanel\" class=\"teacher-comment-panel\" hidden>",
+        "<h3>Comentari del professor</h3>",
+        "<div id=\"ProfessorCommentText\"></div>",
+        "</section>",
+        "<div id=\"Resposta\" class=\"answer-solution\"></div>",
+        "<div id=\"Correcio\" class=\"correction-panel\"></div>",
+        "<div id=\"Audio\" class=\"audio-panel\"></div>",
+        "<section class=\"student-answer-panel\">",
+        "<h3>La meua resposta</h3>",
+        "<div id=\"Camp\" class=\"student-answer-editor\" contenteditable=\"true\" role=\"textbox\" aria-label=\"La meua resposta\"></div>",
+        "</section>",
+        "<div id=\"Btn\" class=\"action-panel\"><p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"ComencaRutina()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Comprovar</span></span></p></div>"
+    ].join("");
 
     DivContainer.innerHTML=HtmlContainer; //Crea el nom DOM
     
@@ -680,9 +707,7 @@ function ComencaRutina(){
         document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Dades.Resposta;
         document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>COPIA LA RESPOSTA CORRECTA I DESPRÉS PREM SEGÜENT.</u></b>";
         document.getElementById("Camp").innerText = "";
-        if(document.getElementById("FormulaMath")){
-            document.getElementById("FormulaMath").innerHTML = "";
-        }
+        actualitzarVistaMatematica();
         setTimeout(RenderizarMathJax, 1500);
         return;
     }
@@ -702,6 +727,7 @@ function ComencaRutina(){
     
             //Afegit:  SI ERROR -->  mostra la resposta durant 7 segons i passa a la següent pregunta.
                 document.getElementById("Camp").innerText = Resposta;		//escriu la resposta correcta en el quadre.
+                actualitzarVistaMatematica();
                 RetrasEnviarResposta = setTimeout(EnviarInfo,7000);
             //Fi de l'afegit
             setTimeout(RenderizarMathJax, 1500);
@@ -1407,23 +1433,49 @@ function debounce(fn, delay) {
 }
 
 // Función para inicializar el editor
-function initEditor() {
+function mostrarVistaMatematica(visible) {
+  const panel = document.getElementById('FormulaMathPanel');
+  if (panel) {
+    panel.hidden = !visible;
+  }
+}
+
+function actualitzarVistaMatematica() {
   const editor = document.getElementById('Camp');
   const output = document.getElementById('FormulaMath');
+  if (!editor || !output) {
+    return;
+  }
+
+  const rawText = editor.innerText || "";
+  if (rawText.trim() === "") {
+    output.innerHTML = "";
+    mostrarVistaMatematica(false);
+    return;
+  }
+
+  const latexText = parseTextToLatex(rawText);
+  output.innerHTML = latexText;
+  mostrarVistaMatematica(latexText.trim() !== "");
+
+  if (window.MathJax && typeof MathJax.typesetPromise === "function") {
+    MathJax.typesetPromise([output])
+      .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
+  }
+}
+
+function initEditor() {
+  const editor = document.getElementById('Camp');
+  if (!editor) {
+    return;
+  }
 
   // Creamos un handler debounced de 1000 ms
-  const debouncedHandle = debounce(handleInput, 1000);
+  const debouncedHandle = debounce(actualitzarVistaMatematica, 600);
 
   // Cada vez que cambie el contenido, reiniciamos el timer
   editor.addEventListener('input', debouncedHandle);
-
-  function handleInput() {
-    const rawText = editor.innerText;
-    const latexText = parseTextToLatex(rawText);
-    output.innerHTML = latexText;
-    //setTimeout(RenderizarMathJax, 500);
-    MathJax.typesetPromise(); 
-  }
+  actualitzarVistaMatematica();
 }
 
 // Función para obtener la respuesta del alumno y pasarla por la conversión LaTeX

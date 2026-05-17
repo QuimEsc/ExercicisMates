@@ -12,6 +12,132 @@
 #info, .contentPista { background-color:#f1f1f1;}
 #scroller, #wrapper, #lienzo { background:#fff;}
 
+#container .exercise-question {
+	text-align:left;
+	color:#1f2933;
+	font-family:Arial, Helvetica, sans-serif;
+	font-size:18px;
+	line-height:1.55;
+	margin:10px 0 14px;
+}
+
+#container .math-preview-panel,
+#container .teacher-comment-panel,
+#container .student-answer-panel,
+#container .correction-panel,
+#container .answer-solution {
+	text-align:left;
+}
+
+#container .math-preview-panel[hidden],
+#container .teacher-comment-panel[hidden],
+#container .correction-panel:empty,
+#container .answer-solution:empty {
+	display:none !important;
+}
+
+#container .math-preview-panel,
+#container .teacher-comment-panel,
+#container .student-answer-panel {
+	border-radius:8px;
+	margin:14px 0;
+	padding:12px 14px;
+}
+
+#container .math-preview-panel {
+	background:#eef7ff;
+	border:1px solid #b9dcff;
+	border-left:4px solid #2f80ed;
+	color:#102a43;
+}
+
+#container .teacher-comment-panel {
+	background:#fff8df;
+	border:1px solid #f2d27a;
+	border-left:4px solid #d99a00;
+	color:#4a3410;
+}
+
+#container .student-answer-panel {
+	background:#f8fafc;
+	border:1px solid #d8e1ea;
+}
+
+#container .math-preview-panel h3,
+#container .teacher-comment-panel h3,
+#container .student-answer-panel h3 {
+	color:#344054;
+	font-family:Arial, Helvetica, sans-serif;
+	font-size:12px;
+	font-weight:700;
+	letter-spacing:0.04em;
+	margin:0 0 8px;
+	text-transform:uppercase;
+}
+
+#container .math-preview-output,
+#container #ProfessorCommentText {
+	font-family:Arial, Helvetica, sans-serif;
+	font-size:15px;
+	line-height:1.55;
+	overflow-wrap:anywhere;
+	white-space:pre-wrap;
+}
+
+#container .student-answer-editor {
+	background:#fffef9;
+	border:1px solid #c9d2dc;
+	border-top-color:#aeb8c2;
+	border-radius:6px;
+	box-shadow:inset 0 1px 2px rgba(15, 23, 42, .08);
+	color:#171717;
+	font-family:"Times New Roman", Times, serif;
+	font-size:15px;
+	line-height:1.55;
+	min-height:170px;
+	outline:none;
+	overflow:auto;
+	padding:12px 14px;
+	white-space:pre-wrap;
+}
+
+#container .student-answer-editor:focus {
+	border-color:#2f80ed;
+	box-shadow:0 0 0 3px rgba(47, 128, 237, .16), inset 0 1px 2px rgba(15, 23, 42, .08);
+}
+
+#container .correction-panel,
+#container .answer-solution {
+	background:#f8fafc;
+	border:1px solid #d8e1ea;
+	border-radius:8px;
+	font-family:Arial, Helvetica, sans-serif;
+	font-size:15px;
+	line-height:1.55;
+	margin:14px 0;
+	padding:12px 14px;
+}
+
+#container .audio-panel {
+	margin:10px 0;
+}
+
+#container .action-panel {
+	margin-top:12px;
+	text-align:center;
+}
+
+@media all and (max-width:600px) {
+	#container .exercise-question {
+		font-size:16px;
+	}
+
+	#container .student-answer-editor {
+		font-size:16px;
+		min-height:190px;
+	}
+}
+
 @media all and (max-width:600px) {
 	#info, .contentPista { background-color:#fff;}
 }

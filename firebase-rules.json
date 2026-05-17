@@ -45,6 +45,24 @@
           }
         }
       }
+    },
+    "comments": {
+      ".read": true,
+      "$grup": {
+        "$id": {
+          ".write": true,
+          ".validate": "newData.exists() ? newData.hasChildren(['text', 'updatedAt']) : true",
+          "text": {
+            ".validate": "newData.isString() && newData.val().length <= 2000"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
     }
   }
 }
