@@ -380,12 +380,6 @@
       margin-bottom: 10px;
     }
 
-    .answer-views {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-
     .answer-view h4 {
       color: var(--muted);
       font-size: 12px;
@@ -454,10 +448,6 @@
       .topbar {
         align-items: flex-start;
         flex-direction: column;
-      }
-
-      .answer-views {
-        grid-template-columns: 1fr;
       }
 
       h1 {
@@ -538,15 +528,9 @@
       </div>
       <div class="detail-block">
         <h3>Resposta en curs</h3>
-        <div class="answer-views">
-          <div class="answer-view">
-            <h4>Text de l'alumne</h4>
-            <p class="detail-text" id="modalAnswer"></p>
-          </div>
-          <div class="answer-view">
-            <h4>Vista matematica</h4>
-            <div class="detail-text detail-html math-content" id="modalAnswerMath"></div>
-          </div>
+        <div class="answer-view">
+          <h4>Vista matematica</h4>
+          <div class="detail-text detail-html math-content" id="modalAnswerMath"></div>
         </div>
       </div>
       <div class="detail-block" id="savedAnswerBlock" hidden>
@@ -596,7 +580,6 @@
     const solutionBlock = document.getElementById("solutionBlock");
     const solutionDetails = document.getElementById("solutionDetails");
     const modalSolution = document.getElementById("modalSolution");
-    const modalAnswer = document.getElementById("modalAnswer");
     const modalAnswerMath = document.getElementById("modalAnswerMath");
     const savedAnswerBlock = document.getElementById("savedAnswerBlock");
     const modalSavedAnswer = document.getElementById("modalSavedAnswer");
@@ -609,6 +592,8 @@
     let totalLiveItems = 0;
     let cleanupInProgress = false;
     let activeModalItem = null;
+    let activeModalContentSignature = "";
+    let activeModalSolutionSignature = "";
     let commentsByPath = new Map();
     const MS_HORA = 60 * 60 * 1000;
     const DEFAULT_TTL_MS = 48 * MS_HORA;
@@ -713,6 +698,27 @@
           }
         });
       }
+    }
+
+    function getDetailsOpenState(root) {
+      const state = new Map();
+      Array.from(root.querySelectorAll("details")).forEach(function (details, index) {
+        const summary = details.querySelector("summary");
+        const summaryText = summary ? summary.textContent.trim() : "";
+        state.set(`${index}|${summaryText}`, details.open);
+      });
+      return state;
+    }
+
+    function restoreDetailsOpenState(root, state) {
+      Array.from(root.querySelectorAll("details")).forEach(function (details, index) {
+        const summary = details.querySelector("summary");
+        const summaryText = summary ? summary.textContent.trim() : "";
+        const key = `${index}|${summaryText}`;
+        if (state.has(key)) {
+          details.open = state.get(key);
+        }
+      });
     }
 
     function getTtlMs() {
@@ -973,26 +979,62 @@
       return parts.join("<hr>");
     }
 
+    function getModalParts(item) {
+      return {
+        question: item.preguntaHtml || textToHtml(item.pregunta),
+        solution: item.solucio || "",
+        answerMath: item.respostaMath || textToHtml(item.resposta),
+        savedAnswer: buildSavedAnswerHtml(item)
+      };
+    }
+
+    function getModalContentSignature(parts) {
+      return [
+        parts.question,
+        parts.solution,
+        parts.answerMath,
+        parts.savedAnswer
+      ].join("\u001f");
+    }
+
     function renderModalContent(item, keepCommentText, resetSolution) {
+      const parts = getModalParts(item);
+      const contentSignature = getModalContentSignature(parts);
+      const shouldRefreshContent = resetSolution || contentSignature !== activeModalContentSignature;
+
       modalTitle.textContent = `${item.grup || ""} | ${item.alumne || ""}`;
       modalMeta.textContent = `${item.preguntaTitol || "Pregunta"} | ${formatClock(item.updatedAt)} | ${formatRelative(item.updatedAt)}`;
-      setHtmlOrPlaceholder(modalQuestion, item.preguntaHtml || textToHtml(item.pregunta), "Sense pregunta");
 
-      const solutionWasOpen = solutionDetails.open;
-      const hasSolution = setHtmlOrPlaceholder(modalSolution, item.solucio, "Sense solucio carregada");
-      attachSolutionToggleRenderers();
-      solutionBlock.hidden = !hasSolution;
-      solutionDetails.open = hasSolution && !resetSolution && solutionWasOpen;
+      if (shouldRefreshContent) {
+        setHtmlOrPlaceholder(modalQuestion, parts.question, "Sense pregunta");
 
-      modalAnswer.textContent = item.resposta || "Sense resposta encara";
-      setHtmlOrPlaceholder(modalAnswerMath, item.respostaMath || textToHtml(item.resposta), "Sense vista matematica encara");
+        const solutionWasOpen = solutionDetails.open;
+        const innerDetailsState = getDetailsOpenState(modalSolution);
+        const shouldRefreshSolution = resetSolution || parts.solution !== activeModalSolutionSignature;
+        let hasSolution = (parts.solution || "").toString().trim() !== "";
 
-      const savedAnswerHtml = buildSavedAnswerHtml(item);
-      const hasSavedAnswer = setHtmlOrPlaceholder(modalSavedAnswer, savedAnswerHtml, "Encara no hi ha resposta carregada");
-      savedAnswerBlock.hidden = !hasSavedAnswer;
+        if (shouldRefreshSolution) {
+          hasSolution = setHtmlOrPlaceholder(modalSolution, parts.solution, "Sense solucio carregada");
+          attachSolutionToggleRenderers();
+          if (!resetSolution) {
+            restoreDetailsOpenState(modalSolution, innerDetailsState);
+          }
+          activeModalSolutionSignature = parts.solution;
+        }
+
+        solutionBlock.hidden = !hasSolution;
+        solutionDetails.open = hasSolution && !resetSolution && solutionWasOpen;
+
+        setHtmlOrPlaceholder(modalAnswerMath, parts.answerMath, "Sense vista matematica encara");
+
+        const hasSavedAnswer = setHtmlOrPlaceholder(modalSavedAnswer, parts.savedAnswer, "Encara no hi ha resposta carregada");
+        savedAnswerBlock.hidden = !hasSavedAnswer;
+
+        activeModalContentSignature = contentSignature;
+        window.setTimeout(renderModalMath, 0);
+      }
 
       renderCommentEditor(item, keepCommentText);
-      window.setTimeout(renderModalMath, 0);
     }
 
     function findUpdatedModalItem(item) {
@@ -1029,6 +1071,8 @@
 
     function openModal(item) {
       activeModalItem = item;
+      activeModalContentSignature = "";
+      activeModalSolutionSignature = "";
       modalBackdrop.classList.add("open");
       renderModalContent(item, false, true);
     }
@@ -1036,6 +1080,8 @@
     function hideModal() {
       modalBackdrop.classList.remove("open");
       activeModalItem = null;
+      activeModalContentSignature = "";
+      activeModalSolutionSignature = "";
     }
 
     function openBroadcastDialog() {

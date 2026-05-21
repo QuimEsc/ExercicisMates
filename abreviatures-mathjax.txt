@@ -124,29 +124,51 @@ Significa:
 
 
 INTEGRALS
-Forma indefinida:
-  int expressio dx
+Forma recomanada:
+  int(interval)(funcio) dx
+
+El primer parentesi es l'interval.
+El segon parentesi es la funcio que vols integrar.
+
+Integral indefinida:
+  int()(funcio) dx
 
 Exemple:
-  int x^2 dx
+  int()(x^2) dx
 
 Significa:
-  Integral indefinida de x^2 respecte de x.
+  Integral indefinida de x^2 respecte de x. No hi ha interval perquè el primer parentesi esta buit.
 
-Forma definida:
-  int(a,b) expressio dx
+Integral definida:
+  int(a,b)(funcio) dx
 
 Exemple:
-  int(0,1) x^2 dx
+  int(0,1)(x^2) dx
 
 Significa:
   Integral definida de 0 a 1 de x^2 respecte de x.
 
+Exemple amb fraccio i parentesis:
+  int()(2x/(x-5)) dx
+
+Significa:
+  Integral indefinida de la fraccio 2x/(x-5).
+
+Exemple definit amb fraccio:
+  int(1,3)(2x/(x-5)) dx
+
+Significa:
+  Integral definida entre 1 i 3 de la fraccio 2x/(x-5).
+
 Exemple genial:
-  int(0,pi) sin(x) dx
+  int(0,pi)(sin(x)) dx
 
 Significa:
   Integral definida de 0 a pi de sin(x) respecte de x.
+
+Nota:
+  La forma antiga int x^2 dx encara pot funcionar, pero es millor usar int()(x^2) dx.
+  Amb funcions amb parentesis o fraccions, usa sempre la forma nova per evitar ambiguitats.
 
 
 FUNCIONS HABITUALS
@@ -165,4 +187,5 @@ CONSELLS RAPIDS
 2. Per a columnes de matrius, separa amb comes: ,
 3. Per a limits laterals, escriu + o - darrere del valor: 0+ o 0-
 4. Per a infinit, escriu inf.
-5. Per a integrals, no oblides el diferencial final: dx, dt, du...
+5. Per a integrals, usa int(interval)(funcio) dx. Si no hi ha interval, escriu int()(funcio) dx.
+6. En integrals, no oblides el diferencial final: dx, dt, du...

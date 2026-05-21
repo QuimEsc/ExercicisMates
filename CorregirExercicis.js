@@ -1076,6 +1076,40 @@ function parseIntegralConstruct(line, index) {
             return null;
         }
 
+        var functionCursor = skipSpaces(line, block.end);
+        if (line.charAt(functionCursor) === "(") {
+            var functionBlock = readParenthesizedContent(line, functionCursor);
+            if (!functionBlock) {
+                return null;
+            }
+
+            if (block.content.trim() !== "") {
+                var newStyleLimits = splitTopLevel(block.content, ",");
+                if (newStyleLimits.length !== 2) {
+                    return null;
+                }
+
+                lowerLimit = mathExpressionToLatex(newStyleLimits[0]);
+                upperLimit = mathExpressionToLatex(newStyleLimits[1]);
+            }
+
+            var newStyleIntegrand = functionBlock.content.trim();
+            if (!newStyleIntegrand) {
+                return null;
+            }
+
+            var differentialStart = skipSpaces(line, functionBlock.end);
+            var leadingDifferential = findLeadingDifferential(line.slice(differentialStart));
+            if (!leadingDifferential) {
+                return null;
+            }
+
+            return {
+                end: differentialStart + leadingDifferential.end,
+                latex: buildIntegralLatex(lowerLimit, upperLimit, newStyleIntegrand, leadingDifferential.variable)
+            };
+        }
+
         var limits = splitTopLevel(block.content, ",");
         if (limits.length !== 2) {
             return null;
@@ -1097,16 +1131,18 @@ function parseIntegralConstruct(line, index) {
         return null;
     }
 
+    return {
+        end: cursor + differential.end,
+        latex: buildIntegralLatex(lowerLimit, upperLimit, integrand, differential.variable)
+    };
+}
+
+function buildIntegralLatex(lowerLimit, upperLimit, integrand, variable) {
     var latex = "\\int";
     if (lowerLimit || upperLimit) {
         latex += "_{" + lowerLimit + "}^{" + upperLimit + "}";
     }
-    latex += " " + mathExpressionToLatex(integrand) + "\\,d" + differential.variable;
-
-    return {
-        end: cursor + differential.end,
-        latex: latex
-    };
+    return latex + " " + mathExpressionToLatex(integrand) + "\\,d" + variable;
 }
 
 function mathExpressionToLatex(expression) {
@@ -1258,6 +1294,23 @@ function findDifferential(text) {
                 variable: variable
             };
         }
+    }
+
+    return null;
+}
+
+function findLeadingDifferential(text) {
+    var start = skipSpaces(text, 0);
+    var current = text.charAt(start);
+    var variable = text.charAt(start + 1);
+    var next = start + 2 >= text.length ? " " : text.charAt(start + 2);
+
+    if (current === "d" && /[A-Za-z]/.test(variable) && (start + 2 >= text.length || /\s|[.,;:!?=]/.test(next))) {
+        return {
+            start: start,
+            end: start + 2,
+            variable: variable
+        };
     }
 
     return null;
