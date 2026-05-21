@@ -22,11 +22,26 @@
           "pregunta": {
             ".validate": "newData.isString() && newData.val().length <= 2000"
           },
+          "preguntaHtml": {
+            ".validate": "newData.isString() && newData.val().length <= 20000"
+          },
+          "solucio": {
+            ".validate": "newData.isString() && newData.val().length <= 50000"
+          },
           "preview": {
             ".validate": "newData.isString() && newData.val().length <= 500"
           },
           "resposta": {
             ".validate": "newData.isString() && newData.val().length <= 12000"
+          },
+          "respostaMath": {
+            ".validate": "newData.isString() && newData.val().length <= 20000"
+          },
+          "respostaGuardada": {
+            ".validate": "newData.isString() && newData.val().length <= 30000"
+          },
+          "correccioGuardada": {
+            ".validate": "newData.isString() && newData.val().length <= 30000"
           },
           "tipusCorreccio": {
             ".validate": "newData.isString() && newData.val().length <= 40"

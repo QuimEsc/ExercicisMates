@@ -840,6 +840,32 @@ function parseTextToLatex(text) {
 }
 
 function renderMixedMathLine(line) {
+    return renderLineWithSpecialMath(line);
+}
+
+function renderLineWithSpecialMath(line) {
+    var result = "";
+    var index = 0;
+
+    while (index < line.length) {
+        var special = findNextSpecialMathConstruct(line, index);
+        if (!special) {
+            result += renderPlainMixedMathSegment(line.slice(index));
+            break;
+        }
+
+        if (special.start > index) {
+            result += renderPlainMixedMathSegment(line.slice(index, special.start));
+        }
+
+        result += "\\(" + special.latex + "\\)";
+        index = special.end;
+    }
+
+    return result;
+}
+
+function renderPlainMixedMathSegment(line) {
     var tokens = tokenizeMixedLine(line);
     var result = "";
     var i = 0;
@@ -886,6 +912,355 @@ function renderMixedMathLine(line) {
     }
 
     return result;
+}
+
+function findNextSpecialMathConstruct(line, startIndex) {
+    for (var i = startIndex; i < line.length; i++) {
+        var special = parseSpecialMathConstructAt(line, i);
+        if (special) {
+            special.start = i;
+            return special;
+        }
+    }
+
+    return null;
+}
+
+function parseSpecialMathConstructAt(line, index) {
+    if (!hasKeywordBoundaryBefore(line, index)) {
+        return null;
+    }
+
+    var matrix = parseMatrixConstruct(line, index, "mat", "pmatrix");
+    if (matrix) {
+        return matrix;
+    }
+
+    var determinant = parseMatrixConstruct(line, index, "det", "vmatrix");
+    if (determinant) {
+        return determinant;
+    }
+
+    var system = parseSystemConstruct(line, index);
+    if (system) {
+        return system;
+    }
+
+    var limit = parseLimitConstruct(line, index);
+    if (limit) {
+        return limit;
+    }
+
+    return parseIntegralConstruct(line, index);
+}
+
+function parseMatrixConstruct(line, index, keyword, environment) {
+    var afterKeyword = matchSpecialKeyword(line, index, keyword);
+    if (afterKeyword === -1) {
+        return null;
+    }
+
+    var openIndex = skipSpaces(line, afterKeyword);
+    if (line.charAt(openIndex) !== "(") {
+        return null;
+    }
+
+    var block = readParenthesizedContent(line, openIndex);
+    if (!block) {
+        return null;
+    }
+
+    var rows = splitTopLevel(block.content, ";")
+        .map(function(row) {
+            return splitMatrixRow(row)
+                .map(function(cell) {
+                    return cell === "__MID__" ? "\\mid" : mathExpressionToLatex(cell);
+                })
+                .join("&");
+        })
+        .filter(Boolean);
+
+    if (!rows.length) {
+        return null;
+    }
+
+    return {
+        end: block.end,
+        latex: "\\begin{" + environment + "}" + rows.join("\\\\") + "\\end{" + environment + "}"
+    };
+}
+
+function parseSystemConstruct(line, index) {
+    var afterKeyword = matchSpecialKeyword(line, index, "sis");
+    if (afterKeyword === -1) {
+        return null;
+    }
+
+    var openIndex = skipSpaces(line, afterKeyword);
+    if (line.charAt(openIndex) !== "(") {
+        return null;
+    }
+
+    var block = readParenthesizedContent(line, openIndex);
+    if (!block) {
+        return null;
+    }
+
+    var equations = splitTopLevel(block.content, ";")
+        .map(mathExpressionToLatex)
+        .filter(Boolean);
+
+    if (!equations.length) {
+        return null;
+    }
+
+    return {
+        end: block.end,
+        latex: "\\left\\{\\begin{array}{l}" + equations.join("\\\\") + "\\end{array}\\right."
+    };
+}
+
+function parseLimitConstruct(line, index) {
+    var afterKeyword = matchSpecialKeyword(line, index, "lim");
+    if (afterKeyword === -1) {
+        return null;
+    }
+
+    var openIndex = skipSpaces(line, afterKeyword);
+    if (line.charAt(openIndex) !== "(") {
+        return null;
+    }
+
+    var block = readParenthesizedContent(line, openIndex);
+    if (!block) {
+        return null;
+    }
+
+    var arrowIndex = block.content.indexOf("->");
+    if (arrowIndex === -1) {
+        return null;
+    }
+
+    var variable = block.content.slice(0, arrowIndex).trim();
+    var target = block.content.slice(arrowIndex + 2).trim();
+    if (!variable || !target) {
+        return null;
+    }
+
+    var expressionStart = skipSpaces(line, block.end);
+    var expression = line.slice(expressionStart).trim();
+    var latex = "\\lim_{" + variable + "\\to " + limitTargetToLatex(target) + "}";
+    if (expression) {
+        latex += " " + mathExpressionToLatex(expression);
+    }
+
+    return {
+        end: line.length,
+        latex: latex
+    };
+}
+
+function parseIntegralConstruct(line, index) {
+    var afterKeyword = matchSpecialKeyword(line, index, "int");
+    if (afterKeyword === -1) {
+        return null;
+    }
+
+    var cursor = skipSpaces(line, afterKeyword);
+    var lowerLimit = "";
+    var upperLimit = "";
+
+    if (line.charAt(cursor) === "(") {
+        var block = readParenthesizedContent(line, cursor);
+        if (!block) {
+            return null;
+        }
+
+        var limits = splitTopLevel(block.content, ",");
+        if (limits.length !== 2) {
+            return null;
+        }
+
+        lowerLimit = mathExpressionToLatex(limits[0]);
+        upperLimit = mathExpressionToLatex(limits[1]);
+        cursor = skipSpaces(line, block.end);
+    }
+
+    var rest = line.slice(cursor);
+    var differential = findDifferential(rest);
+    if (!differential) {
+        return null;
+    }
+
+    var integrand = rest.slice(0, differential.start).trim();
+    if (!integrand) {
+        return null;
+    }
+
+    var latex = "\\int";
+    if (lowerLimit || upperLimit) {
+        latex += "_{" + lowerLimit + "}^{" + upperLimit + "}";
+    }
+    latex += " " + mathExpressionToLatex(integrand) + "\\,d" + differential.variable;
+
+    return {
+        end: cursor + differential.end,
+        latex: latex
+    };
+}
+
+function mathExpressionToLatex(expression) {
+    var value = (expression || "").toString().trim();
+    if (!value) {
+        return "";
+    }
+
+    var parsed = tryParseMathExpression(value);
+    if (parsed) {
+        return parsed.latex;
+    }
+
+    return value.replace(/\binf\b/gi, "\\infty");
+}
+
+function matchSpecialKeyword(line, index, keyword) {
+    if (line.slice(index, index + keyword.length).toLowerCase() !== keyword) {
+        return -1;
+    }
+
+    var afterKeyword = index + keyword.length;
+    if (!hasKeywordBoundaryAfter(line, afterKeyword)) {
+        return -1;
+    }
+
+    return afterKeyword;
+}
+
+function hasKeywordBoundaryBefore(line, index) {
+    return index === 0 || !/[A-Za-z0-9_]/.test(line.charAt(index - 1));
+}
+
+function hasKeywordBoundaryAfter(line, index) {
+    return index >= line.length || !/[A-Za-z0-9_]/.test(line.charAt(index));
+}
+
+function skipSpaces(line, index) {
+    while (index < line.length && /\s/.test(line.charAt(index))) {
+        index++;
+    }
+    return index;
+}
+
+function readParenthesizedContent(line, openIndex) {
+    var depth = 0;
+    for (var i = openIndex; i < line.length; i++) {
+        var chunk = line.charAt(i);
+        if (chunk === "(") {
+            depth++;
+        } else if (chunk === ")") {
+            depth--;
+            if (depth === 0) {
+                return {
+                    content: line.slice(openIndex + 1, i),
+                    end: i + 1
+                };
+            }
+        }
+    }
+
+    return null;
+}
+
+function splitTopLevel(text, separator) {
+    var parts = [];
+    var start = 0;
+    var depth = 0;
+
+    for (var i = 0; i < text.length; i++) {
+        var chunk = text.charAt(i);
+        if (chunk === "(") {
+            depth++;
+        } else if (chunk === ")") {
+            depth = Math.max(0, depth - 1);
+        } else if (chunk === separator && depth === 0) {
+            parts.push(text.slice(start, i).trim());
+            start = i + 1;
+        }
+    }
+
+    parts.push(text.slice(start).trim());
+    return parts.filter(function(part) {
+        return part !== "";
+    });
+}
+
+function splitMatrixRow(row) {
+    var cells = [];
+    var start = 0;
+    var depth = 0;
+
+    for (var i = 0; i < row.length; i++) {
+        var chunk = row.charAt(i);
+        if (chunk === "(") {
+            depth++;
+        } else if (chunk === ")") {
+            depth = Math.max(0, depth - 1);
+        } else if ((chunk === "," || chunk === "|") && depth === 0) {
+            var cell = row.slice(start, i).trim();
+            if (cell) {
+                cells.push(cell);
+            }
+            if (chunk === "|") {
+                cells.push("__MID__");
+            }
+            start = i + 1;
+        }
+    }
+
+    var lastCell = row.slice(start).trim();
+    if (lastCell) {
+        cells.push(lastCell);
+    }
+
+    return cells;
+}
+
+function limitTargetToLatex(target) {
+    var value = target.trim();
+    var side = "";
+    if (value.length > 1 && (value.slice(-1) === "+" || value.slice(-1) === "-")) {
+        side = "^" + value.slice(-1);
+        value = value.slice(0, -1);
+    }
+
+    if (/^inf$/i.test(value)) {
+        value = "\\infty";
+    } else if (/^-inf$/i.test(value)) {
+        value = "-\\infty";
+    } else {
+        value = mathExpressionToLatex(value);
+    }
+
+    return value + side;
+}
+
+function findDifferential(text) {
+    for (var i = 0; i < text.length - 1; i++) {
+        var previous = i === 0 ? " " : text.charAt(i - 1);
+        var current = text.charAt(i);
+        var variable = text.charAt(i + 1);
+        var next = i + 2 >= text.length ? " " : text.charAt(i + 2);
+
+        if (current === "d" && /[A-Za-z]/.test(variable) && /\s/.test(previous) && (i + 2 >= text.length || /\s|[.,;:!?=]/.test(next))) {
+            return {
+                start: i,
+                end: i + 2,
+                variable: variable
+            };
+        }
+    }
+
+    return null;
 }
 
 function tokenizeMixedLine(line) {
@@ -975,7 +1350,7 @@ function containsStructuredMath(node) {
         return false;
     }
 
-    if (node.type === "binary" || node.type === "relation" || node.type === "unary" || node.type === "power" || node.type === "sqrt") {
+    if (node.type === "binary" || node.type === "relation" || node.type === "unary" || node.type === "power" || node.type === "sqrt" || node.type === "func") {
         return true;
     }
 
@@ -1224,6 +1599,16 @@ function parsePrimaryExpression(state) {
         return { type: "number", value: previousToken(state).value };
     }
 
+    if (peekToken(state) && peekToken(state).type === "name" && isKnownMathFunction(peekToken(state).value) && peekToken(state, 1) && peekToken(state, 1).type === "op" && peekToken(state, 1).value === "(") {
+        var functionName = advanceToken(state).value;
+        advanceToken(state);
+        var functionArgument = parseRelationExpression(state);
+        if (!functionArgument || !matchOperator(state, ")")) {
+            return null;
+        }
+        return { type: "func", name: functionName, argument: functionArgument };
+    }
+
     if (matchType(state, "name")) {
         return { type: "name", value: previousToken(state).value };
     }
@@ -1343,6 +1728,10 @@ function astToLatex(node) {
         return "\\sqrt[" + node.index + "]{" + rootValue + "}";
     }
 
+    if (node.type === "func") {
+        return functionNameToLatex(node.name) + "\\left(" + astToLatex(node.argument) + "\\right)";
+    }
+
     if (node.type === "unary") {
         var unaryValue = astToLatex(node.value);
         if (needsParenthesesInUnary(node.value)) {
@@ -1401,6 +1790,24 @@ function relationOperatorToLatex(operator) {
         return "\\ge ";
     }
     return operator;
+}
+
+function isKnownMathFunction(name) {
+    return ["sin", "cos", "tan", "ln", "log", "exp"].indexOf((name || "").toLowerCase()) !== -1;
+}
+
+function functionNameToLatex(name) {
+    var normalized = (name || "").toLowerCase();
+    if (normalized === "ln") {
+        return "\\ln";
+    }
+    if (normalized === "log") {
+        return "\\log";
+    }
+    if (normalized === "exp") {
+        return "\\exp";
+    }
+    return "\\" + normalized;
 }
 
 function needsParenthesesInUnary(node) {

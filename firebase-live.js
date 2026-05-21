@@ -75,6 +75,14 @@ function seguimentStripHtml(html) {
   return div.textContent || div.innerText || "";
 }
 
+function seguimentLimitarHtml(html, maxChars) {
+  const value = (html || "").toString();
+  if (value.length <= maxChars) {
+    return value;
+  }
+  return value.slice(0, maxChars);
+}
+
 function seguimentCompactarEspais(text) {
   return (text || "").toString().replace(/\s+/g, " ").trim();
 }
@@ -90,6 +98,43 @@ function seguimentLimitarText(text, maxChars) {
 function seguimentGetRespostaActual() {
   const editor = document.getElementById("Camp");
   return editor ? editor.innerText : "";
+}
+
+function seguimentGetRespostaMathActual(resposta) {
+  if (typeof parseTextToLatex === "function") {
+    return parseTextToLatex(resposta || "");
+  }
+  return (resposta || "").toString();
+}
+
+function seguimentGetRespostaGuardada() {
+  try {
+    const raw = localStorage.getItem("Resposta");
+    const respostaBuida = {
+      respostaGuardada: "",
+      correccioGuardada: ""
+    };
+
+    if (!raw) {
+      return respostaBuida;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return respostaBuida;
+    }
+
+    return {
+      respostaGuardada: seguimentLimitarHtml(parsed.Resposta || "", window.LIVE_SAVED_RESPONSE_MAX_CHARS || 30000),
+      correccioGuardada: seguimentLimitarHtml(parsed.Correction || "", window.LIVE_SAVED_RESPONSE_MAX_CHARS || 30000)
+    };
+  } catch (err) {
+    console.warn("No s'ha pogut llegir la resposta guardada per al seguiment.", err);
+    return {
+      respostaGuardada: "",
+      correccioGuardada: ""
+    };
+  }
 }
 
 function seguimentGetUltimesParaules(text, totalParaules) {
@@ -117,7 +162,13 @@ function seguimentGetSnapshot() {
     return null;
   }
 
-  const resposta = seguimentLimitarResposta(seguimentGetRespostaActual());
+  const respostaActual = seguimentGetRespostaActual();
+  const resposta = seguimentLimitarResposta(respostaActual);
+  const respostaMath = seguimentLimitarHtml(
+    seguimentGetRespostaMathActual(respostaActual),
+    window.LIVE_RESPONSE_MATH_MAX_CHARS || 20000
+  );
+  const respostaGuardada = seguimentGetRespostaGuardada();
   const grup = seguimentGetGrup();
   const exerciciId = (Dades.ID_Exercici || Dades.ID || "sense-exercici").toString();
   const previewWords = window.LIVE_PREVIEW_WORDS || 5;
@@ -128,8 +179,13 @@ function seguimentGetSnapshot() {
     apartat: seguimentLimitarText(seguimentStripHtml(Dades.Apartat || ""), 200),
     preguntaTitol: Dades.ID_Exercici ? `Pregunta ${Dades.ID_Exercici}` : "Pregunta",
     pregunta: seguimentLimitarText(seguimentStripHtml(Dades.Questio || ""), 2000),
+    preguntaHtml: seguimentLimitarHtml(Dades.Questio || "", window.LIVE_QUESTION_HTML_MAX_CHARS || 20000),
+    solucio: seguimentLimitarHtml(Dades.Resposta || "", window.LIVE_SOLUTION_MAX_CHARS || 50000),
     preview: seguimentGetUltimesParaules(resposta, previewWords),
     resposta: resposta,
+    respostaMath: respostaMath,
+    respostaGuardada: respostaGuardada.respostaGuardada,
+    correccioGuardada: respostaGuardada.correccioGuardada,
     tipusCorreccio: seguimentLimitarText(Dades.TipusCorreccio || "", 40),
     id: (Dades.ID || "").toString(),
     exerciciId: exerciciId,
@@ -302,7 +358,14 @@ function seguimentEnviarAra(force) {
 
   const path = seguimentGetLivePath(snapshot);
   seguimentEscoltarComentaris(path);
-  const signature = `${path}|${snapshot.resposta}|${snapshot.pregunta}`;
+  const signature = [
+    path,
+    snapshot.resposta,
+    snapshot.respostaMath,
+    snapshot.respostaGuardada,
+    snapshot.correccioGuardada,
+    snapshot.pregunta
+  ].join("|");
 
   if (!force && signature === SeguimentLastSignature) {
     return Promise.resolve();
@@ -400,8 +463,13 @@ try {
         apartat: "Diagnosi",
         preguntaTitol: "Pregunta prova",
         pregunta: "Si veus aquesta fila, Firebase escriu i seguiment.html llegeix correctament.",
+        preguntaHtml: "Calcula \\(2+2\\) i explica el resultat.",
+        solucio: "<details><summary>Veure solucio</summary><p>La solucio es \\(2+2=4\\).</p></details>",
         preview: "prova de connexio firebase",
         resposta: "Aquesta entrada es pot esborrar des de Firebase Data.",
+        respostaMath: "Aquesta entrada mostra \\(2+2=4\\).",
+        respostaGuardada: "",
+        correccioGuardada: "",
         tipusCorreccio: "Test",
         id: "prova",
         exerciciId: "prova",

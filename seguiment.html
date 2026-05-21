@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Seguiment en viu</title>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [["\\(", "\\)"], ["$", "$"]],
+        displayMath: [["\\[", "\\]"], ["$$", "$$"]]
+      }
+    };
+  </script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.js"></script>
   <style>
     :root {
       --bg: #f4f6f8;
@@ -55,6 +64,17 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
+    }
+
+    .broadcast-open {
+      background: var(--blue);
+      border: 1px solid var(--blue);
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 8px 12px;
     }
 
     .filters button {
@@ -185,6 +205,81 @@
       display: flex;
     }
 
+    .broadcast-backdrop {
+      align-items: center;
+      background: rgba(15, 23, 42, 0.42);
+      display: none;
+      inset: 0;
+      justify-content: center;
+      padding: 20px;
+      position: fixed;
+      z-index: 6;
+    }
+
+    .broadcast-backdrop.open {
+      display: flex;
+    }
+
+    .broadcast-dialog {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.24);
+      max-width: 560px;
+      padding: 18px;
+      width: 100%;
+    }
+
+    .broadcast-dialog h2 {
+      font-size: 19px;
+      margin: 0 0 6px;
+    }
+
+    .broadcast-target {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .broadcast-actions {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+
+    .broadcast-send,
+    .broadcast-cancel {
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 8px 12px;
+    }
+
+    .broadcast-send {
+      background: var(--blue);
+      border: 1px solid var(--blue);
+      color: white;
+    }
+
+    .broadcast-cancel {
+      background: #f2f4f7;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+
+    .broadcast-send:disabled {
+      cursor: default;
+      opacity: .62;
+    }
+
+    .broadcast-status {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .modal {
       background: white;
       border-radius: 8px;
@@ -242,8 +337,66 @@
       border-radius: 6px;
       line-height: 1.5;
       margin: 0;
+      overflow-x: auto;
       padding: 12px;
       white-space: pre-wrap;
+    }
+
+    .detail-html {
+      white-space: normal;
+    }
+
+    .detail-html p {
+      margin: 0 0 10px;
+    }
+
+    .detail-html p:last-child {
+      margin-bottom: 0;
+    }
+
+    .detail-html details {
+      margin: 8px 0;
+    }
+
+    .detail-html summary,
+    .solution-details summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .solution-details {
+      background: #fffdf5;
+      border: 1px solid #f1d18a;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    .solution-details > summary {
+      color: #8a5b00;
+      margin: 0;
+    }
+
+    .solution-details[open] > summary {
+      margin-bottom: 10px;
+    }
+
+    .answer-views {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .answer-view h4 {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      margin: 0 0 6px;
+      text-transform: uppercase;
+    }
+
+    .detail-placeholder {
+      color: var(--muted);
+      font-style: italic;
     }
 
     .comment-editor {
@@ -303,6 +456,10 @@
         flex-direction: column;
       }
 
+      .answer-views {
+        grid-template-columns: 1fr;
+      }
+
       h1 {
         font-size: 19px;
       }
@@ -313,6 +470,7 @@
   <header>
     <div class="topbar">
       <h1>Seguiment en viu</h1>
+      <button class="broadcast-open" id="openBroadcast" type="button">Comentari global</button>
       <div class="filters" id="filters">
         <button class="active" data-filter="all">Tots</button>
         <button data-filter="T1">T1</button>
@@ -322,6 +480,21 @@
       </div>
     </div>
   </header>
+
+  <div class="broadcast-backdrop" id="broadcastBackdrop">
+    <section class="broadcast-dialog" role="dialog" aria-modal="true" aria-labelledby="broadcastTitle">
+      <h2 id="broadcastTitle">Comentari global</h2>
+      <div class="broadcast-target" id="broadcastTarget"></div>
+      <textarea class="comment-editor" id="broadcastComment" maxlength="2000" placeholder="Escriu un comentari en text pla per als alumnes del filtre actual."></textarea>
+      <div class="broadcast-actions">
+        <div>
+          <button class="broadcast-send" id="sendBroadcast" type="button">Enviar al filtre actual</button>
+          <button class="broadcast-cancel" id="cancelBroadcast" type="button">Cancel.lar</button>
+        </div>
+        <span class="broadcast-status" id="broadcastStatus"></span>
+      </div>
+    </section>
+  </div>
 
   <main>
     <div class="status-line" id="statusLine">Connectant...</div>
@@ -354,11 +527,31 @@
       </div>
       <div class="detail-block">
         <h3>Pregunta</h3>
-        <p class="detail-text" id="modalQuestion"></p>
+        <div class="detail-text detail-html math-content" id="modalQuestion"></div>
+      </div>
+      <div class="detail-block" id="solutionBlock">
+        <h3>Solucio de l'exercici</h3>
+        <details class="solution-details" id="solutionDetails">
+          <summary>Mostrar / amagar solucio</summary>
+          <div class="detail-text detail-html math-content" id="modalSolution"></div>
+        </details>
       </div>
       <div class="detail-block">
         <h3>Resposta en curs</h3>
-        <p class="detail-text" id="modalAnswer"></p>
+        <div class="answer-views">
+          <div class="answer-view">
+            <h4>Text de l'alumne</h4>
+            <p class="detail-text" id="modalAnswer"></p>
+          </div>
+          <div class="answer-view">
+            <h4>Vista matematica</h4>
+            <div class="detail-text detail-html math-content" id="modalAnswerMath"></div>
+          </div>
+        </div>
+      </div>
+      <div class="detail-block" id="savedAnswerBlock" hidden>
+        <h3>Resposta carregada de l'alumne</h3>
+        <div class="detail-text detail-html math-content" id="modalSavedAnswer"></div>
       </div>
       <div class="detail-block">
         <h3>Comentari per a l'alumne</h3>
@@ -388,12 +581,25 @@
     const emptyState = document.getElementById("emptyState");
     const statusLine = document.getElementById("statusLine");
     const filters = document.getElementById("filters");
+    const openBroadcast = document.getElementById("openBroadcast");
+    const broadcastBackdrop = document.getElementById("broadcastBackdrop");
+    const broadcastTarget = document.getElementById("broadcastTarget");
+    const broadcastComment = document.getElementById("broadcastComment");
+    const sendBroadcast = document.getElementById("sendBroadcast");
+    const cancelBroadcast = document.getElementById("cancelBroadcast");
+    const broadcastStatus = document.getElementById("broadcastStatus");
     const modalBackdrop = document.getElementById("modalBackdrop");
     const closeModal = document.getElementById("closeModal");
     const modalTitle = document.getElementById("modalTitle");
     const modalMeta = document.getElementById("modalMeta");
     const modalQuestion = document.getElementById("modalQuestion");
+    const solutionBlock = document.getElementById("solutionBlock");
+    const solutionDetails = document.getElementById("solutionDetails");
+    const modalSolution = document.getElementById("modalSolution");
     const modalAnswer = document.getElementById("modalAnswer");
+    const modalAnswerMath = document.getElementById("modalAnswerMath");
+    const savedAnswerBlock = document.getElementById("savedAnswerBlock");
+    const modalSavedAnswer = document.getElementById("modalSavedAnswer");
     const modalComment = document.getElementById("modalComment");
     const saveComment = document.getElementById("saveComment");
     const commentStatus = document.getElementById("commentStatus");
@@ -406,9 +612,107 @@
     let commentsByPath = new Map();
     const MS_HORA = 60 * 60 * 1000;
     const DEFAULT_TTL_MS = 48 * MS_HORA;
+    const COMMENT_MAX_CHARS = 2000;
 
     function escapeText(text) {
       return (text || "").toString();
+    }
+
+    function sanitizeHtml(html) {
+      const template = document.createElement("template");
+      template.innerHTML = (html || "").toString();
+      const blockedSelectors = [
+        "script",
+        "iframe",
+        "object",
+        "embed",
+        "link",
+        "meta",
+        "base",
+        "form",
+        "input",
+        "button",
+        "textarea",
+        "select",
+        "option"
+      ].join(",");
+
+      for (const node of template.content.querySelectorAll(blockedSelectors)) {
+        node.remove();
+      }
+
+      for (const node of template.content.querySelectorAll("*")) {
+        for (const attr of Array.from(node.attributes)) {
+          const name = attr.name.toLowerCase();
+          const value = attr.value.trim().toLowerCase();
+          if (name.startsWith("on")) {
+            node.removeAttribute(attr.name);
+            continue;
+          }
+          if ((name === "href" || name === "src" || name === "xlink:href") && /^(javascript:|data:text\/html)/.test(value)) {
+            node.removeAttribute(attr.name);
+          }
+        }
+      }
+
+      return template.innerHTML;
+    }
+
+    function setHtmlOrPlaceholder(element, html, placeholder) {
+      const value = (html || "").toString().trim();
+      if (!value) {
+        element.innerHTML = `<span class="detail-placeholder">${placeholder}</span>`;
+        return false;
+      }
+      element.innerHTML = sanitizeHtml(value);
+      return true;
+    }
+
+    function textToHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = (text || "").toString();
+      return div.innerHTML.replace(/\n/g, "<br>");
+    }
+
+    function renderMath(elements, attempt) {
+      const nextAttempt = attempt || 0;
+      if (!window.MathJax || typeof MathJax.typesetPromise !== "function") {
+        if (nextAttempt < 10) {
+          window.setTimeout(function () {
+            renderMath(elements, nextAttempt + 1);
+          }, 250);
+        }
+        return;
+      }
+
+      if (typeof MathJax.typesetClear === "function") {
+        MathJax.typesetClear(elements);
+      }
+
+      MathJax.typesetPromise(elements)
+        .catch(function (err) {
+          console.warn("No s'ha pogut renderitzar MathJax en seguiment.", err);
+        });
+    }
+
+    function renderModalMath() {
+      const elements = [modalQuestion, modalAnswerMath, modalSavedAnswer];
+      if (solutionDetails.open) {
+        elements.push(modalSolution);
+      }
+      renderMath(elements);
+    }
+
+    function attachSolutionToggleRenderers() {
+      for (const details of modalSolution.querySelectorAll("details")) {
+        details.addEventListener("toggle", function () {
+          if (details.open) {
+            window.setTimeout(function () {
+              renderMath([details]);
+            }, 0);
+          }
+        });
+      }
     }
 
     function getTtlMs() {
@@ -529,6 +833,37 @@
         .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     }
 
+    function getBroadcastTargets() {
+      return visibleItems().filter((item) => getItemPath(item));
+    }
+
+    function getFilterLabel() {
+      return currentFilter === "all" ? "Tots" : currentFilter;
+    }
+
+    function updateBroadcastTarget() {
+      const total = getBroadcastTargets().length;
+      broadcastTarget.textContent = `Filtre actual: ${getFilterLabel()} | ${total} preguntes seleccionades`;
+      sendBroadcast.disabled = total === 0;
+      return total;
+    }
+
+    function mergeBroadcastComment(globalText, existingText) {
+      const cleanGlobal = (globalText || "").trim();
+      const cleanExisting = (existingText || "").trim();
+      if (!cleanExisting) {
+        return cleanGlobal.slice(0, COMMENT_MAX_CHARS);
+      }
+
+      const separator = "\n\n";
+      const spaceForExisting = COMMENT_MAX_CHARS - cleanGlobal.length - separator.length;
+      if (spaceForExisting <= 0) {
+        return cleanGlobal.slice(0, COMMENT_MAX_CHARS);
+      }
+
+      return `${cleanGlobal}${separator}${cleanExisting.slice(0, spaceForExisting)}`;
+    }
+
     function render() {
       const items = visibleItems();
       rowsEl.innerHTML = "";
@@ -552,6 +887,10 @@
         row.children[4].textContent = escapeText(item.preview || "sense text encara");
         row.addEventListener("click", () => openModal(item));
         rowsEl.appendChild(row);
+      }
+
+      if (broadcastBackdrop.classList.contains("open")) {
+        updateBroadcastTarget();
       }
     }
 
@@ -623,20 +962,148 @@
         });
     }
 
-    function openModal(item) {
-      activeModalItem = item;
+    function buildSavedAnswerHtml(item) {
+      const parts = [];
+      if (item.respostaGuardada) {
+        parts.push(`<p><b>Resposta enviada:</b></p>${item.respostaGuardada}`);
+      }
+      if (item.correccioGuardada) {
+        parts.push(`<p><b>Correccio:</b></p>${item.correccioGuardada}`);
+      }
+      return parts.join("<hr>");
+    }
+
+    function renderModalContent(item, keepCommentText, resetSolution) {
       modalTitle.textContent = `${item.grup || ""} | ${item.alumne || ""}`;
       modalMeta.textContent = `${item.preguntaTitol || "Pregunta"} | ${formatClock(item.updatedAt)} | ${formatRelative(item.updatedAt)}`;
-      modalQuestion.textContent = item.pregunta || "Sense pregunta";
+      setHtmlOrPlaceholder(modalQuestion, item.preguntaHtml || textToHtml(item.pregunta), "Sense pregunta");
+
+      const solutionWasOpen = solutionDetails.open;
+      const hasSolution = setHtmlOrPlaceholder(modalSolution, item.solucio, "Sense solucio carregada");
+      attachSolutionToggleRenderers();
+      solutionBlock.hidden = !hasSolution;
+      solutionDetails.open = hasSolution && !resetSolution && solutionWasOpen;
+
       modalAnswer.textContent = item.resposta || "Sense resposta encara";
-      renderCommentEditor(item, false);
+      setHtmlOrPlaceholder(modalAnswerMath, item.respostaMath || textToHtml(item.resposta), "Sense vista matematica encara");
+
+      const savedAnswerHtml = buildSavedAnswerHtml(item);
+      const hasSavedAnswer = setHtmlOrPlaceholder(modalSavedAnswer, savedAnswerHtml, "Encara no hi ha resposta carregada");
+      savedAnswerBlock.hidden = !hasSavedAnswer;
+
+      renderCommentEditor(item, keepCommentText);
+      window.setTimeout(renderModalMath, 0);
+    }
+
+    function findUpdatedModalItem(item) {
+      if (!item) {
+        return null;
+      }
+
+      const path = getItemPath(item);
+      if (path) {
+        const byPath = liveItems.find((current) => getItemPath(current) === path);
+        if (byPath) {
+          return byPath;
+        }
+      }
+
+      const identity = getIdentity(item);
+      return liveItems.find((current) => getIdentity(current) === identity) || null;
+    }
+
+    function syncActiveModal() {
+      if (!activeModalItem || !modalBackdrop.classList.contains("open")) {
+        return;
+      }
+
+      const updatedItem = findUpdatedModalItem(activeModalItem);
+      if (!updatedItem) {
+        hideModal();
+        return;
+      }
+
+      activeModalItem = updatedItem;
+      renderModalContent(updatedItem, document.activeElement === modalComment, false);
+    }
+
+    function openModal(item) {
+      activeModalItem = item;
       modalBackdrop.classList.add("open");
+      renderModalContent(item, false, true);
     }
 
     function hideModal() {
       modalBackdrop.classList.remove("open");
       activeModalItem = null;
     }
+
+    function openBroadcastDialog() {
+      updateBroadcastTarget();
+      broadcastStatus.textContent = "";
+      broadcastBackdrop.classList.add("open");
+      window.setTimeout(function () {
+        broadcastComment.focus();
+      }, 0);
+    }
+
+    function hideBroadcastDialog() {
+      broadcastBackdrop.classList.remove("open");
+      broadcastStatus.textContent = "";
+    }
+
+    function enviarComentariGlobal() {
+      const text = broadcastComment.value.trim();
+      const targets = getBroadcastTargets();
+
+      if (!text) {
+        broadcastStatus.textContent = "Escriu un comentari.";
+        return;
+      }
+
+      if (!targets.length) {
+        broadcastStatus.textContent = "No hi ha preguntes en aquest filtre.";
+        return;
+      }
+
+      const updatedAt = Date.now();
+      const updates = {};
+      for (const item of targets) {
+        const path = getItemPath(item);
+        const comment = getCommentForItem(item);
+        const existingText = comment && comment.text ? comment.text.toString() : "";
+        updates[`comments/${path}`] = {
+          text: mergeBroadcastComment(text, existingText),
+          updatedAt
+        };
+      }
+
+      sendBroadcast.disabled = true;
+      broadcastStatus.textContent = "Enviant...";
+
+      db.ref().update(updates)
+        .then(function () {
+          broadcastComment.value = "";
+          broadcastStatus.textContent = `Enviat a ${targets.length} preguntes.`;
+          window.setTimeout(hideBroadcastDialog, 900);
+        })
+        .catch(function (err) {
+          broadcastStatus.textContent = "No s'ha pogut enviar.";
+          console.warn(err);
+        })
+        .then(function () {
+          sendBroadcast.disabled = getBroadcastTargets().length === 0;
+        });
+    }
+
+    openBroadcast.addEventListener("click", openBroadcastDialog);
+    cancelBroadcast.addEventListener("click", hideBroadcastDialog);
+    sendBroadcast.addEventListener("click", enviarComentariGlobal);
+    broadcastBackdrop.addEventListener("click", function (event) {
+      if (event.target === broadcastBackdrop) {
+        hideBroadcastDialog();
+      }
+    });
 
     filters.addEventListener("click", function (event) {
       const button = event.target.closest("button[data-filter]");
@@ -656,8 +1123,26 @@
       }
     });
     closeModal.addEventListener("click", hideModal);
+    solutionDetails.addEventListener("toggle", function () {
+      if (solutionDetails.open) {
+        window.setTimeout(function () {
+          renderMath([modalSolution]);
+        }, 0);
+      }
+    });
+    modalSolution.addEventListener("toggle", function (event) {
+      if (event.target && event.target.open) {
+        window.setTimeout(function () {
+          renderMath([modalSolution]);
+        }, 0);
+      }
+    }, true);
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape") {
+        if (broadcastBackdrop.classList.contains("open")) {
+          hideBroadcastDialog();
+          return;
+        }
         hideModal();
       }
     });
@@ -712,17 +1197,22 @@
       liveItems = processed.items;
       cleanupFirebase(processed.updates);
       render();
+      syncActiveModal();
     }, function (err) {
       statusLine.textContent = "No s'ha pogut llegir Firebase.";
       console.warn(err);
     });
 
-    window.setInterval(render, 5000);
+    window.setInterval(function () {
+      render();
+      syncActiveModal();
+    }, 5000);
     window.setInterval(function () {
       const processed = processLiveItems(liveItems);
       liveItems = processed.items;
       cleanupFirebase(processed.updates);
       render();
+      syncActiveModal();
     }, getCleanupIntervalMs());
   </script>
 </body>

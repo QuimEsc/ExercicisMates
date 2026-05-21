@@ -1,0 +1,168 @@
+ABREVIATURES DE TEXT PLA PER A LA VISTA MATEMATICA
+
+Idea general
+Escriu l'expressio en text pla i la Vista matematica la mostrara amb MathJax.
+Per evitar confusions, usa aquestes abreviatures tal com apareixen aci.
+
+FRACCIONS
+Forma:
+  a/b
+
+Exemple:
+  1/(x+2)
+
+Significa:
+  Fraccio amb numerador 1 i denominador x+2.
+
+
+POTENCIES
+Forma:
+  base^exponent
+
+Exemple:
+  x^2+3x+2
+
+Significa:
+  x elevat a 2, mes 3x, mes 2.
+
+
+ARRELS
+Forma:
+  sqrt expressio
+  sqrt(expressio)
+  sqrt3 expressio
+
+Exemples:
+  sqrt(x+1)
+  sqrt3 8
+
+Significa:
+  Arrel quadrada de x+1.
+  Arrel cubica de 8.
+
+
+MATRIUS
+Forma:
+  mat(fila1;fila2;fila3)
+  Dins de cada fila, separa les columnes amb comes.
+
+Exemple:
+  mat(1,2;3,4)
+
+Significa:
+  Matriu de 2 files i 2 columnes.
+
+Exemple genial:
+  A=mat(1,0,2;3,-1,4)
+
+Significa:
+  A es una matriu 2x3.
+
+
+DETERMINANTS
+Forma:
+  det(fila1;fila2)
+
+Exemple:
+  det(1,2;3,4)
+
+Significa:
+  Determinant de la matriu amb files (1,2) i (3,4).
+
+
+MATRIUS AMPLIADES
+Forma:
+  mat(coeficients|terme independent)
+
+Exemple:
+  mat(1,2|5;3,4|6)
+
+Significa:
+  Matriu ampliada d'un sistema de dues equacions.
+
+
+SISTEMES D'EQUACIONS
+Forma:
+  sis(equacio1;equacio2;equacio3)
+
+Exemple:
+  sis(x+y=3;2x-y=1)
+
+Significa:
+  Sistema amb clau que uneix dues equacions.
+
+Exemple genial:
+  sis(x+y+z=6;2x-y=1;x-z=4)
+
+Significa:
+  Sistema de tres equacions amb tres incognites.
+
+
+LIMITS
+Forma:
+  lim(variable->valor) expressio
+
+Exemple:
+  lim(x->2) (x^2-4)/(x-2)
+
+Significa:
+  Limit quan x tendeix a 2 de la fraccio indicada.
+
+Exemples laterals:
+  lim(x->0-) 1/x
+  lim(x->0+) 1/x
+
+Significa:
+  El primer es quan x tendeix a 0 per l'esquerra.
+  El segon es quan x tendeix a 0 per la dreta.
+
+Exemple amb infinit:
+  lim(x->inf) 1/x
+
+Significa:
+  Limit quan x tendeix a infinit.
+
+
+INTEGRALS
+Forma indefinida:
+  int expressio dx
+
+Exemple:
+  int x^2 dx
+
+Significa:
+  Integral indefinida de x^2 respecte de x.
+
+Forma definida:
+  int(a,b) expressio dx
+
+Exemple:
+  int(0,1) x^2 dx
+
+Significa:
+  Integral definida de 0 a 1 de x^2 respecte de x.
+
+Exemple genial:
+  int(0,pi) sin(x) dx
+
+Significa:
+  Integral definida de 0 a pi de sin(x) respecte de x.
+
+
+FUNCIONS HABITUALS
+Forma:
+  sin(x), cos(x), tan(x), ln(x), log(x), exp(x)
+
+Exemple:
+  lim(x->0) sin(x)/x
+
+Significa:
+  Limit classic del quocient sin(x)/x quan x tendeix a 0.
+
+
+CONSELLS RAPIDS
+1. Per a matrius i sistemes, separa files o equacions amb punt i coma: ;
+2. Per a columnes de matrius, separa amb comes: ,
+3. Per a limits laterals, escriu + o - darrere del valor: 0+ o 0-
+4. Per a infinit, escriu inf.
+5. Per a integrals, no oblides el diferencial final: dx, dt, du...
