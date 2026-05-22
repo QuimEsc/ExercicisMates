@@ -1356,7 +1356,7 @@ function tokenizeMixedLine(line) {
             continue;
         }
 
-        if ("()+-*/^=<>".indexOf(chunk) !== -1) {
+        if ("()+-*/^=<>|".indexOf(chunk) !== -1) {
             tokens.push({ type: "math", value: chunk, start: i, end: i + 1 });
             i++;
             continue;
@@ -1403,7 +1403,7 @@ function containsStructuredMath(node) {
         return false;
     }
 
-    if (node.type === "binary" || node.type === "relation" || node.type === "unary" || node.type === "power" || node.type === "sqrt" || node.type === "func") {
+    if (node.type === "binary" || node.type === "relation" || node.type === "unary" || node.type === "power" || node.type === "sqrt" || node.type === "func" || node.type === "probability") {
         return true;
     }
 
@@ -1504,7 +1504,7 @@ function tokenizeMathExpression(expression) {
             continue;
         }
 
-        if ("()+-*/^=<>".indexOf(chunk) !== -1) {
+        if ("()+-*/^=<>|".indexOf(chunk) !== -1) {
             tokens.push({ type: "op", value: chunk, start: i, end: i + 1 });
             i++;
             continue;
@@ -1522,7 +1522,7 @@ function parseRelationExpression(state) {
         return null;
     }
 
-    while (matchOperator(state, "=") || matchOperator(state, "<") || matchOperator(state, ">") || matchOperator(state, "<=") || matchOperator(state, ">=")) {
+    while (matchOperator(state, "=") || matchOperator(state, "<") || matchOperator(state, ">") || matchOperator(state, "<=") || matchOperator(state, ">=") || matchOperator(state, "|")) {
         var operator = previousToken(state).value;
         var rightNode = parseAdditiveExpression(state);
         if (!rightNode) {
@@ -1650,6 +1650,16 @@ function parsePrimaryExpression(state) {
 
     if (matchType(state, "number")) {
         return { type: "number", value: previousToken(state).value };
+    }
+
+    if (peekToken(state) && peekToken(state).type === "name" && peekToken(state).value === "P" && peekToken(state, 1) && peekToken(state, 1).type === "op" && peekToken(state, 1).value === "(") {
+        advanceToken(state);
+        advanceToken(state);
+        var probabilityArgument = parseRelationExpression(state);
+        if (!probabilityArgument || !matchOperator(state, ")")) {
+            return null;
+        }
+        return { type: "probability", argument: probabilityArgument };
     }
 
     if (peekToken(state) && peekToken(state).type === "name" && isKnownMathFunction(peekToken(state).value) && peekToken(state, 1) && peekToken(state, 1).type === "op" && peekToken(state, 1).value === "(") {
@@ -1785,6 +1795,10 @@ function astToLatex(node) {
         return functionNameToLatex(node.name) + "\\left(" + astToLatex(node.argument) + "\\right)";
     }
 
+    if (node.type === "probability") {
+        return "P\\left(" + astToLatex(node.argument) + "\\right)";
+    }
+
     if (node.type === "unary") {
         var unaryValue = astToLatex(node.value);
         if (needsParenthesesInUnary(node.value)) {
@@ -1841,6 +1855,9 @@ function relationOperatorToLatex(operator) {
     }
     if (operator === ">=") {
         return "\\ge ";
+    }
+    if (operator === "|") {
+        return "\\mid ";
     }
     return operator;
 }

@@ -380,6 +380,24 @@
       margin-bottom: 10px;
     }
 
+    .plain-answer-details {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin-top: 10px;
+      padding: 10px 12px;
+    }
+
+    .plain-answer-details > summary {
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .plain-answer-details[open] > summary {
+      margin-bottom: 10px;
+    }
+
     .answer-view h4 {
       color: var(--muted);
       font-size: 12px;
@@ -531,6 +549,10 @@
         <div class="answer-view">
           <h4>Vista matematica</h4>
           <div class="detail-text detail-html math-content" id="modalAnswerMath"></div>
+          <details class="plain-answer-details">
+            <summary>Mostrar / amagar text pla</summary>
+            <div class="detail-text" id="modalAnswerPlain"></div>
+          </details>
         </div>
       </div>
       <div class="detail-block" id="savedAnswerBlock" hidden>
@@ -581,6 +603,7 @@
     const solutionDetails = document.getElementById("solutionDetails");
     const modalSolution = document.getElementById("modalSolution");
     const modalAnswerMath = document.getElementById("modalAnswerMath");
+    const modalAnswerPlain = document.getElementById("modalAnswerPlain");
     const savedAnswerBlock = document.getElementById("savedAnswerBlock");
     const modalSavedAnswer = document.getElementById("modalSavedAnswer");
     const modalComment = document.getElementById("modalComment");
@@ -984,6 +1007,7 @@
         question: item.preguntaHtml || textToHtml(item.pregunta),
         solution: item.solucio || "",
         answerMath: item.respostaMath || textToHtml(item.resposta),
+        answerPlain: textToHtml(item.resposta),
         savedAnswer: buildSavedAnswerHtml(item)
       };
     }
@@ -993,6 +1017,7 @@
         parts.question,
         parts.solution,
         parts.answerMath,
+        parts.answerPlain,
         parts.savedAnswer
       ].join("\u001f");
     }
@@ -1026,6 +1051,7 @@
         solutionDetails.open = hasSolution && !resetSolution && solutionWasOpen;
 
         setHtmlOrPlaceholder(modalAnswerMath, parts.answerMath, "Sense vista matematica encara");
+        setHtmlOrPlaceholder(modalAnswerPlain, parts.answerPlain, "Sense text pla encara");
 
         const hasSavedAnswer = setHtmlOrPlaceholder(modalSavedAnswer, parts.savedAnswer, "Encara no hi ha resposta carregada");
         savedAnswerBlock.hidden = !hasSavedAnswer;
