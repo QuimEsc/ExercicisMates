@@ -536,6 +536,10 @@
       <div class="detail-block">
         <h3>Pregunta</h3>
         <div class="detail-text detail-html math-content" id="modalQuestion"></div>
+        <details class="plain-answer-details">
+          <summary>Mostrar / amagar pregunta en text pla</summary>
+          <div class="detail-text" id="modalQuestionPlain"></div>
+        </details>
       </div>
       <div class="detail-block" id="solutionBlock">
         <h3>Solucio de l'exercici</h3>
@@ -599,6 +603,7 @@
     const modalTitle = document.getElementById("modalTitle");
     const modalMeta = document.getElementById("modalMeta");
     const modalQuestion = document.getElementById("modalQuestion");
+    const modalQuestionPlain = document.getElementById("modalQuestionPlain");
     const solutionBlock = document.getElementById("solutionBlock");
     const solutionDetails = document.getElementById("solutionDetails");
     const modalSolution = document.getElementById("modalSolution");
@@ -1005,6 +1010,7 @@
     function getModalParts(item) {
       return {
         question: item.preguntaHtml || textToHtml(item.pregunta),
+        questionPlain: textToHtml(item.pregunta),
         solution: item.solucio || "",
         answerMath: item.respostaMath || textToHtml(item.resposta),
         answerPlain: textToHtml(item.resposta),
@@ -1015,6 +1021,7 @@
     function getModalContentSignature(parts) {
       return [
         parts.question,
+        parts.questionPlain,
         parts.solution,
         parts.answerMath,
         parts.answerPlain,
@@ -1032,6 +1039,7 @@
 
       if (shouldRefreshContent) {
         setHtmlOrPlaceholder(modalQuestion, parts.question, "Sense pregunta");
+        setHtmlOrPlaceholder(modalQuestionPlain, parts.questionPlain, "Sense pregunta en text pla");
 
         const solutionWasOpen = solutionDetails.open;
         const innerDetailsState = getDetailsOpenState(modalSolution);
