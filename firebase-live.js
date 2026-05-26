@@ -107,6 +107,30 @@ function seguimentGetRespostaActual() {
   return editor ? editor.innerText : "";
 }
 
+function seguimentGetHtmlElementById(id) {
+  const element = document.getElementById(id);
+  return element ? element.innerHTML : "";
+}
+
+function seguimentBuildQuestionHtml(Dades) {
+  const apartatHtml = (seguimentGetHtmlElementById("Apartat") || Dades.Apartat || "").toString().trim();
+  const questioHtml = (seguimentGetHtmlElementById("Questio") || Dades.Questio || "").toString().trim();
+  const apartatText = seguimentCompactarEspais(seguimentStripHtml(apartatHtml));
+  const questioText = seguimentCompactarEspais(seguimentStripHtml(questioHtml));
+
+  if (apartatHtml && questioHtml) {
+    if (apartatText && questioText && apartatText.indexOf(questioText) !== -1) {
+      return apartatHtml;
+    }
+    if (apartatText && questioText && questioText.indexOf(apartatText) !== -1) {
+      return questioHtml;
+    }
+    return apartatHtml + questioHtml;
+  }
+
+  return questioHtml || apartatHtml;
+}
+
 function seguimentGetRespostaMathActual(resposta) {
   if (typeof parseTextToLatex === "function") {
     return parseTextToLatex(resposta || "");
@@ -179,7 +203,7 @@ function seguimentGetSnapshot() {
   const grup = seguimentGetGrup();
   const exerciciId = (Dades.ID_Exercici || Dades.ID || "sense-exercici").toString();
   const previewWords = window.LIVE_PREVIEW_WORDS || 5;
-  const preguntaHtml = (Dades.Questio || Dades.Apartat || "").toString();
+  const preguntaHtml = seguimentBuildQuestionHtml(Dades);
   const preguntaText = seguimentStripHtml(preguntaHtml);
 
   return {
