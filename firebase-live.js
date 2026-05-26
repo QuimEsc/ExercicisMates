@@ -10,7 +10,7 @@ let SeguimentCommentRef = null;
 let SeguimentCommentCallback = null;
 let SeguimentLastComment = null;
 const SEGUIMENT_MS_HORA = 60 * 60 * 1000;
-const SEGUIMENT_DEFAULT_TTL_MS = 48 * SEGUIMENT_MS_HORA;
+const SEGUIMENT_DEFAULT_TTL_MS = 72 * SEGUIMENT_MS_HORA;
 
 function seguimentNormalitzarText(text) {
   return (text || "")
@@ -185,6 +185,24 @@ function seguimentLimitarResposta(text) {
   return resposta.slice(resposta.length - maxChars);
 }
 
+function seguimentAplicarRespostaPendent(resposta) {
+  const editor = document.getElementById("Camp");
+  const text = (resposta || "").toString();
+
+  if (!editor || !text.trim() || (editor.innerText || "").trim()) {
+    return false;
+  }
+
+  editor.innerText = text;
+  editor.dispatchEvent(new Event("input", { bubbles: true }));
+
+  if (typeof actualitzarVistaMatematica === "function") {
+    actualitzarVistaMatematica();
+  }
+
+  return true;
+}
+
 function seguimentGetSnapshot() {
   const Dades = seguimentGetDades();
   const alumne = sessionStorage.getItem("NomAlumnes");
@@ -301,6 +319,44 @@ function seguimentEsMateixaPregunta(item, snapshot) {
     && item.alumne === snapshot.alumne
     && (item.id || "").toString() === (snapshot.id || "").toString()
     && (item.exerciciId || "").toString() === (snapshot.exerciciId || "").toString();
+}
+
+function seguimentRestaurarRespostaPendent() {
+  if (!SeguimentDb || seguimentGetRespostaActual().trim()) {
+    return Promise.resolve(false);
+  }
+
+  const snapshot = seguimentGetSnapshot();
+  if (!snapshot) {
+    return Promise.resolve(false);
+  }
+
+  const path = seguimentGetLivePath(snapshot);
+  const cutoff = Date.now() - seguimentGetTtlMs();
+
+  return SeguimentDb.ref(path).once("value")
+    .then(function (snapshotDb) {
+      const item = snapshotDb.val();
+      const updatedAt = Number(item && item.updatedAt);
+
+      if (
+        !item
+        || !seguimentEsMateixaPregunta(item, snapshot)
+        || (Number.isFinite(updatedAt) && updatedAt <= cutoff)
+        || !seguimentAplicarRespostaPendent(item.resposta)
+      ) {
+        return false;
+      }
+
+      SeguimentLastPath = path;
+      return seguimentEnviarAra(true).then(function () {
+        return true;
+      });
+    })
+    .catch(function (err) {
+      console.warn("No s'ha pogut restaurar la resposta pendent.", err);
+      return false;
+    });
 }
 
 function seguimentEsborrarDuplicats(snapshot, currentPath) {
@@ -487,6 +543,7 @@ try {
     esborrarActual: seguimentEsborrarActual,
     iniciarSeguiment: seguimentIniciar,
     netejarCaducats: seguimentNetejarCaducats,
+    restaurarRespostaPendent: seguimentRestaurarRespostaPendent,
     provaFirebase: function () {
       if (!SeguimentDb) {
         return Promise.reject(new Error("Firebase no inicialitzat."));

@@ -505,6 +505,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
           setTimeout(RenderizarMathJax, 1000);
         }
         setTimeout(RenderizarMathJax, 5000);
+        RestaurarRespostaPendentSeguiment();
       }).catch(function (err) {
         // There was an error
         console.warn('Something went wrong.', err);
@@ -533,7 +534,19 @@ function calculateImprovedLevenshteinDistance(a, b) {
           setTimeout(RenderizarMathJax, 1000);
         }
           setTimeout(RenderizarMathJax, 5000);
+          RestaurarRespostaPendentSeguiment();
     }
+}
+
+function RestaurarRespostaPendentSeguiment() {
+    window.setTimeout(function () {
+        if (
+            window.SeguimentLive
+            && typeof window.SeguimentLive.restaurarRespostaPendent === "function"
+        ) {
+            window.SeguimentLive.restaurarRespostaPendent();
+        }
+    }, 250);
 }
 
 function CrearDom(){
@@ -823,6 +836,7 @@ function EnviarInfo(){
                   .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
               }, 500); // Retraso pequeño para asegurar que el DOM está listo
                    
+              RestaurarRespostaPendentSeguiment();
              }    
          }).catch(function (err) {
            // There was an error
