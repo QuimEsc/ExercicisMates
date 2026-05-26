@@ -536,10 +536,6 @@
       <div class="detail-block">
         <h3>Pregunta</h3>
         <div class="detail-text detail-html math-content" id="modalQuestion"></div>
-        <details class="plain-answer-details">
-          <summary>Mostrar / amagar pregunta en text pla</summary>
-          <div class="detail-text" id="modalQuestionPlain"></div>
-        </details>
       </div>
       <div class="detail-block" id="solutionBlock">
         <h3>Solucio de l'exercici</h3>
@@ -553,10 +549,6 @@
         <div class="answer-view">
           <h4>Vista matematica</h4>
           <div class="detail-text detail-html math-content" id="modalAnswerMath"></div>
-          <details class="plain-answer-details">
-            <summary>Mostrar / amagar text pla</summary>
-            <div class="detail-text" id="modalAnswerPlain"></div>
-          </details>
         </div>
       </div>
       <div class="detail-block" id="savedAnswerBlock" hidden>
@@ -603,12 +595,10 @@
     const modalTitle = document.getElementById("modalTitle");
     const modalMeta = document.getElementById("modalMeta");
     const modalQuestion = document.getElementById("modalQuestion");
-    const modalQuestionPlain = document.getElementById("modalQuestionPlain");
     const solutionBlock = document.getElementById("solutionBlock");
     const solutionDetails = document.getElementById("solutionDetails");
     const modalSolution = document.getElementById("modalSolution");
     const modalAnswerMath = document.getElementById("modalAnswerMath");
-    const modalAnswerPlain = document.getElementById("modalAnswerPlain");
     const savedAnswerBlock = document.getElementById("savedAnswerBlock");
     const modalSavedAnswer = document.getElementById("modalSavedAnswer");
     const modalComment = document.getElementById("modalComment");
@@ -1008,12 +998,11 @@
     }
 
     function getModalParts(item) {
+      const questionHtml = item.preguntaHtml || item.pregunta || item.apartat || "";
       return {
-        question: item.preguntaHtml || textToHtml(item.pregunta),
-        questionPlain: textToHtml(item.pregunta),
+        question: item.preguntaHtml || textToHtml(questionHtml),
         solution: item.solucio || "",
         answerMath: item.respostaMath || textToHtml(item.resposta),
-        answerPlain: textToHtml(item.resposta),
         savedAnswer: buildSavedAnswerHtml(item)
       };
     }
@@ -1021,10 +1010,8 @@
     function getModalContentSignature(parts) {
       return [
         parts.question,
-        parts.questionPlain,
         parts.solution,
         parts.answerMath,
-        parts.answerPlain,
         parts.savedAnswer
       ].join("\u001f");
     }
@@ -1039,7 +1026,6 @@
 
       if (shouldRefreshContent) {
         setHtmlOrPlaceholder(modalQuestion, parts.question, "Sense pregunta");
-        setHtmlOrPlaceholder(modalQuestionPlain, parts.questionPlain, "Sense pregunta en text pla");
 
         const solutionWasOpen = solutionDetails.open;
         const innerDetailsState = getDetailsOpenState(modalSolution);
@@ -1059,7 +1045,6 @@
         solutionDetails.open = hasSolution && !resetSolution && solutionWasOpen;
 
         setHtmlOrPlaceholder(modalAnswerMath, parts.answerMath, "Sense vista matematica encara");
-        setHtmlOrPlaceholder(modalAnswerPlain, parts.answerPlain, "Sense text pla encara");
 
         const hasSavedAnswer = setHtmlOrPlaceholder(modalSavedAnswer, parts.savedAnswer, "Encara no hi ha resposta carregada");
         savedAnswerBlock.hidden = !hasSavedAnswer;

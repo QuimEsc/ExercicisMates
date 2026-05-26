@@ -75,12 +75,19 @@ function seguimentStripHtml(html) {
   return div.textContent || div.innerText || "";
 }
 
+function seguimentTextToHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = (text || "").toString();
+  return div.innerHTML.replace(/\n/g, "<br>");
+}
+
 function seguimentLimitarHtml(html, maxChars) {
   const value = (html || "").toString();
   if (value.length <= maxChars) {
     return value;
   }
-  return value.slice(0, maxChars);
+  const plainText = seguimentLimitarText(seguimentStripHtml(value), maxChars);
+  return seguimentTextToHtml(plainText) + "<p><em>Contingut retallat en el seguiment en viu.</em></p>";
 }
 
 function seguimentCompactarEspais(text) {
@@ -172,14 +179,16 @@ function seguimentGetSnapshot() {
   const grup = seguimentGetGrup();
   const exerciciId = (Dades.ID_Exercici || Dades.ID || "sense-exercici").toString();
   const previewWords = window.LIVE_PREVIEW_WORDS || 5;
+  const preguntaHtml = (Dades.Questio || Dades.Apartat || "").toString();
+  const preguntaText = seguimentStripHtml(preguntaHtml);
 
   return {
     grup: grup,
     alumne: alumne,
     apartat: seguimentLimitarText(seguimentStripHtml(Dades.Apartat || ""), 200),
     preguntaTitol: Dades.ID_Exercici ? `Pregunta ${Dades.ID_Exercici}` : "Pregunta",
-    pregunta: seguimentLimitarText(seguimentStripHtml(Dades.Questio || ""), 2000),
-    preguntaHtml: seguimentLimitarHtml(Dades.Questio || "", window.LIVE_QUESTION_HTML_MAX_CHARS || 20000),
+    pregunta: seguimentLimitarText(preguntaText, window.LIVE_QUESTION_TEXT_MAX_CHARS || 10000),
+    preguntaHtml: seguimentLimitarHtml(preguntaHtml, window.LIVE_QUESTION_HTML_MAX_CHARS || 100000),
     solucio: seguimentLimitarHtml(Dades.Resposta || "", window.LIVE_SOLUTION_MAX_CHARS || 50000),
     preview: seguimentGetUltimesParaules(resposta, previewWords),
     resposta: resposta,
@@ -364,7 +373,8 @@ function seguimentEnviarAra(force) {
     snapshot.respostaMath,
     snapshot.respostaGuardada,
     snapshot.correccioGuardada,
-    snapshot.pregunta
+    snapshot.pregunta,
+    snapshot.preguntaHtml
   ].join("|");
 
   if (!force && signature === SeguimentLastSignature) {
