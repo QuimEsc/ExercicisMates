@@ -346,6 +346,32 @@
       white-space: normal;
     }
 
+    .question-toggle {
+      cursor: pointer;
+      max-height: 96px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .question-toggle::after {
+      background: linear-gradient(rgba(248, 250, 252, 0), #f8fafc);
+      bottom: 0;
+      content: "";
+      height: 28px;
+      left: 0;
+      pointer-events: none;
+      position: absolute;
+      right: 0;
+    }
+
+    .question-toggle.expanded {
+      max-height: none;
+    }
+
+    .question-toggle.expanded::after {
+      display: none;
+    }
+
     .detail-html p {
       margin: 0 0 10px;
     }
@@ -535,7 +561,7 @@
       </div>
       <div class="detail-block">
         <h3>Pregunta</h3>
-        <div class="detail-text detail-html math-content" id="modalQuestion"></div>
+        <div class="detail-text detail-html math-content question-toggle" id="modalQuestion" role="button" tabindex="0" title="Fes clic per desplegar o plegar la pregunta"></div>
       </div>
       <div class="detail-block" id="solutionBlock">
         <h3>Solucio de l'exercici</h3>
@@ -704,6 +730,15 @@
         elements.push(modalSolution);
       }
       renderMath(elements);
+    }
+
+    function setQuestionExpanded(expanded) {
+      modalQuestion.classList.toggle("expanded", expanded);
+      modalQuestion.setAttribute("aria-expanded", expanded ? "true" : "false");
+    }
+
+    function toggleQuestionExpanded() {
+      setQuestionExpanded(!modalQuestion.classList.contains("expanded"));
     }
 
     function attachSolutionToggleRenderers() {
@@ -1026,6 +1061,7 @@
 
       if (shouldRefreshContent) {
         setHtmlOrPlaceholder(modalQuestion, parts.question, "Sense pregunta");
+        setQuestionExpanded(false);
 
         const solutionWasOpen = solutionDetails.open;
         const innerDetailsState = getDetailsOpenState(modalSolution);
@@ -1185,6 +1221,13 @@
     modalBackdrop.addEventListener("click", function (event) {
       if (event.target === modalBackdrop) {
         hideModal();
+      }
+    });
+    modalQuestion.addEventListener("click", toggleQuestionExpanded);
+    modalQuestion.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleQuestionExpanded();
       }
     });
     closeModal.addEventListener("click", hideModal);

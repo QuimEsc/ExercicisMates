@@ -185,7 +185,7 @@ function seguimentGetSnapshot() {
   return {
     grup: grup,
     alumne: alumne,
-    apartat: seguimentLimitarText(seguimentStripHtml(Dades.Apartat || ""), 200),
+    apartat: seguimentLimitarText(seguimentStripHtml(Dades.Apartat || ""), window.LIVE_APARTAT_TEXT_MAX_CHARS || 10000),
     preguntaTitol: Dades.ID_Exercici ? `Pregunta ${Dades.ID_Exercici}` : "Pregunta",
     pregunta: seguimentLimitarText(preguntaText, window.LIVE_QUESTION_TEXT_MAX_CHARS || 10000),
     preguntaHtml: seguimentLimitarHtml(preguntaHtml, window.LIVE_QUESTION_HTML_MAX_CHARS || 100000),
