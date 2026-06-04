@@ -220,7 +220,11 @@ function seguimentGetSnapshot() {
   const respostaGuardada = seguimentGetRespostaGuardada();
   const grup = seguimentGetGrup();
   const exerciciId = (Dades.ID_Exercici || Dades.ID || "sense-exercici").toString();
-  const previewWords = window.LIVE_PREVIEW_WORDS || 5;
+  const previewWords = window.LIVE_PREVIEW_WORDS || 15;
+  const preview = seguimentLimitarText(
+    seguimentGetUltimesParaules(resposta, previewWords),
+    window.LIVE_PREVIEW_MAX_CHARS || 500
+  );
   const preguntaHtml = seguimentBuildQuestionHtml(Dades);
   const preguntaText = seguimentStripHtml(preguntaHtml);
 
@@ -232,7 +236,11 @@ function seguimentGetSnapshot() {
     pregunta: seguimentLimitarText(preguntaText, window.LIVE_QUESTION_TEXT_MAX_CHARS || 10000),
     preguntaHtml: seguimentLimitarHtml(preguntaHtml, window.LIVE_QUESTION_HTML_MAX_CHARS || 100000),
     solucio: seguimentLimitarHtml(Dades.Resposta || "", window.LIVE_SOLUTION_MAX_CHARS || 50000),
-    preview: seguimentGetUltimesParaules(resposta, previewWords),
+    preview: preview,
+    previewMath: seguimentLimitarHtml(
+      seguimentGetRespostaMathActual(preview),
+      window.LIVE_PREVIEW_MATH_MAX_CHARS || 5000
+    ),
     resposta: resposta,
     respostaMath: respostaMath,
     respostaGuardada: respostaGuardada.respostaGuardada,
@@ -453,6 +461,8 @@ function seguimentEnviarAra(force) {
     snapshot.respostaMath,
     snapshot.respostaGuardada,
     snapshot.correccioGuardada,
+    snapshot.preview,
+    snapshot.previewMath,
     snapshot.pregunta,
     snapshot.preguntaHtml
   ].join("|");

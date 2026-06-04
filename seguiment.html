@@ -178,10 +178,23 @@
     }
 
     .preview {
-      max-width: 330px;
+      line-height: 1.35;
+      max-width: 380px;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      white-space: normal;
+    }
+
+    .preview-math {
+      display: -webkit-box;
+      max-height: 4.1em;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .preview-math mjx-container {
+      max-width: 100%;
+      overflow: hidden;
     }
 
     .empty {
@@ -647,6 +660,8 @@
     const MS_HORA = 60 * 60 * 1000;
     const DEFAULT_TTL_MS = 48 * MS_HORA;
     const COMMENT_MAX_CHARS = 2000;
+    const ACTIVE_MAX_SECONDS = 4 * 60;
+    const RECENT_MAX_SECONDS = 10 * 60;
 
     function escapeText(text) {
       return (text || "").toString();
@@ -882,19 +897,39 @@
 
     function getStatus(item) {
       const seconds = Math.max(0, Math.floor((Date.now() - item.updatedAt) / 1000));
-      if (seconds <= 35) {
-        return { className: "active-now", label: "Actiu" };
+      if (seconds <= ACTIVE_MAX_SECONDS) {
+        return { className: "active-now", label: "Actiu", rank: 0 };
       }
-      if (seconds <= 120) {
-        return { className: "recent", label: "Recent" };
+      if (seconds <= RECENT_MAX_SECONDS) {
+        return { className: "recent", label: "Recent", rank: 1 };
       }
-      return { className: "stale", label: "Parat" };
+      return { className: "stale", label: "Parat", rank: 2 };
+    }
+
+    function compareText(a, b) {
+      return (a || "").toString().localeCompare((b || "").toString(), "ca", {
+        numeric: true,
+        sensitivity: "base"
+      });
+    }
+
+    function getQuestionSortKey(item) {
+      return item.preguntaTitol || item.exerciciId || item.id || item.pregunta || "";
     }
 
     function visibleItems() {
       return liveItems
         .filter((item) => currentFilter === "all" || item.grup === currentFilter)
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        .sort(function (a, b) {
+          const statusDiff = getStatus(a).rank - getStatus(b).rank;
+          if (statusDiff) {
+            return statusDiff;
+          }
+
+          return compareText(a.grup, b.grup)
+            || compareText(getQuestionSortKey(a), getQuestionSortKey(b))
+            || compareText(a.alumne, b.alumne);
+        });
     }
 
     function getBroadcastTargets() {
@@ -928,8 +963,13 @@
       return `${cleanGlobal}${separator}${cleanExisting.slice(0, spaceForExisting)}`;
     }
 
+    function getPreviewHtml(item) {
+      return item.previewMath || textToHtml(item.preview || "sense text encara");
+    }
+
     function render() {
       const items = visibleItems();
+      const previewMathElements = [];
       rowsEl.innerHTML = "";
       emptyState.style.display = items.length ? "none" : "block";
       statusLine.textContent = `${items.length} registres visibles de ${totalLiveItems} totals`;
@@ -948,9 +988,20 @@
         row.children[1].textContent = escapeText(item.grup);
         row.children[2].textContent = escapeText(item.alumne);
         row.children[3].textContent = escapeText(item.preguntaTitol || "Pregunta");
-        row.children[4].textContent = escapeText(item.preview || "sense text encara");
+        const previewEl = document.createElement("div");
+        previewEl.className = "preview-math math-content";
+        setHtmlOrPlaceholder(previewEl, getPreviewHtml(item), "sense text encara");
+        row.children[4].innerHTML = "";
+        row.children[4].appendChild(previewEl);
+        previewMathElements.push(previewEl);
         row.addEventListener("click", () => openModal(item));
         rowsEl.appendChild(row);
+      }
+
+      if (previewMathElements.length) {
+        window.setTimeout(function () {
+          renderMath(previewMathElements);
+        }, 0);
       }
 
       if (broadcastBackdrop.classList.contains("open")) {

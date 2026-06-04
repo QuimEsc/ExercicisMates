@@ -14,22 +14,25 @@
             ".validate": "newData.isString() && newData.val().length <= 80"
           },
           "apartat": {
-            ".validate": "newData.isString() && newData.val().length <= 200"
+            ".validate": "newData.isString() && newData.val().length <= 10000"
           },
           "preguntaTitol": {
             ".validate": "newData.isString() && newData.val().length <= 80"
           },
           "pregunta": {
-            ".validate": "newData.isString() && newData.val().length <= 2000"
+            ".validate": "newData.isString() && newData.val().length <= 10000"
           },
           "preguntaHtml": {
-            ".validate": "newData.isString() && newData.val().length <= 20000"
+            ".validate": "newData.isString() && newData.val().length <= 100000"
           },
           "solucio": {
             ".validate": "newData.isString() && newData.val().length <= 50000"
           },
           "preview": {
             ".validate": "newData.isString() && newData.val().length <= 500"
+          },
+          "previewMath": {
+            ".validate": "newData.isString() && newData.val().length <= 5000"
           },
           "resposta": {
             ".validate": "newData.isString() && newData.val().length <= 12000"

@@ -40,6 +40,9 @@
 var url2 = 'https://script.google.com/macros/s/AKfycbyEL44Kh46RKxhH7FFx2hNwYxUa3vah2ZTSixPHbol0Eb1ixKhtVRyxV8RWD417j0w/exec';
 var RetrasEnviarResposta;
 var EnviamentPerSortidaEnProces = false;
+var EnviamentSheetsPromise = null;
+var RESPOSTA_ENVIADA_SHEETS_KEY = "RespostaEnviadaSheets";
+var DADES_SEGUENT_SHEETS_KEY = "DadesSeguentSheets";
 
 function normalitzarTipusCorreccio(tipusCorreccio) {
     return (tipusCorreccio || "")
@@ -52,6 +55,97 @@ function normalitzarTipusCorreccio(tipusCorreccio) {
 
 function esPerfilProfe() {
     return normalitzarTipusCorreccio(sessionStorage.getItem("NomAlumnes")) === "profe";
+}
+
+function llegirJsonLocalStorage(clau) {
+    try {
+        var raw = localStorage.getItem(clau);
+        return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+        console.warn("No s'ha pogut llegir " + clau + ".", err);
+        return null;
+    }
+}
+
+function obtenirPayloadRespostaSheets() {
+    var NomAlumne = sessionStorage.getItem("NomAlumnes");
+    var UserIp = sessionStorage.getItem("userIP");
+    var Dades = llegirJsonLocalStorage("Dades");
+    var Respostes = llegirJsonLocalStorage("Resposta");
+
+    if (!NomAlumne || !Dades || !Respostes) {
+        return null;
+    }
+
+    return {
+        NomAlumne: NomAlumne,
+        ID: Dades.ID,
+        ID_Exercici: Dades.ID_Exercici,
+        RespostaTeorica: Respostes.Resposta || "",
+        Retroalimentacio: Respostes.Correction || "",
+        Percen: typeof Respostes.PercentatgeAcert === "number" ? Respostes.PercentatgeAcert : 0,
+        IP: UserIp || ""
+    };
+}
+
+function respostaJaEnviadaSheets() {
+    return localStorage.getItem(RESPOSTA_ENVIADA_SHEETS_KEY) === "1";
+}
+
+function llegirDadesSeguentSheets() {
+    return llegirJsonLocalStorage(DADES_SEGUENT_SHEETS_KEY);
+}
+
+function guardarEnviamentSheetsComplet(dadesSeguent) {
+    localStorage.setItem(RESPOSTA_ENVIADA_SHEETS_KEY, "1");
+    localStorage.setItem(DADES_SEGUENT_SHEETS_KEY, JSON.stringify(dadesSeguent));
+}
+
+function enviarRespostaSheets() {
+    if (respostaJaEnviadaSheets()) {
+        return Promise.resolve(llegirDadesSeguentSheets());
+    }
+
+    if (EnviamentSheetsPromise) {
+        return EnviamentSheetsPromise;
+    }
+
+    var data = obtenirPayloadRespostaSheets();
+    if (!data) {
+        return Promise.reject(new Error("No hi ha dades suficients per enviar la resposta."));
+    }
+
+    EnviamentSheetsPromise = fetch(url, {
+        method: 'POST',
+        contentType: 'application/json',
+        body: JSON.stringify(data)
+    })
+    .then(function (response) {
+        return response.json();
+    })
+    .then(function (dadesSeguent) {
+        guardarEnviamentSheetsComplet(dadesSeguent);
+        return dadesSeguent;
+    })
+    .catch(function (err) {
+        console.warn("No s'ha pogut enviar la resposta a Sheets.", err);
+        throw err;
+    })
+    .then(function (dadesSeguent) {
+        EnviamentSheetsPromise = null;
+        return dadesSeguent;
+    }, function (err) {
+        EnviamentSheetsPromise = null;
+        throw err;
+    });
+
+    return EnviamentSheetsPromise;
+}
+
+function enviarRespostaSheetsEnComprovar() {
+    enviarRespostaSheets().catch(function (err) {
+        console.warn("La resposta es reintentara en premer Seguent.", err);
+    });
 }
 
 function GestionarBlur() {
@@ -440,7 +534,21 @@ function calculateImprovedLevenshteinDistance(a, b) {
 
     }
 
+function prepararDadesDespresEnviamentSheets() {
+    if (sessionStorage.getItem("NomAlumnes") == null || !respostaJaEnviadaSheets()) {
+        return;
+    }
+
+    var dadesSeguent = llegirDadesSeguentSheets();
+    localStorage.clear();
+
+    if (dadesSeguent) {
+        localStorage.setItem("Dades", JSON.stringify(dadesSeguent));
+    }
+}
+
   function Actualitzar() {
+  prepararDadesDespresEnviamentSheets();
   if(sessionStorage.getItem("NomAlumnes")==null){ //En cas de no tindre nom d'alumnes.
         var data = { NomAlumne: "" }; // Datos a enviar, vacío inicialmente
         fetch(url, {
@@ -653,6 +761,7 @@ function ComencaRutina(){
           }).then(function (data) {
             // This is the JSON from our response
             ActualitzarDades(data);
+            enviarRespostaSheetsEnComprovar();
 /*            localStorage.clear();
             localStorage.setItem("Dades", JSON.stringify(data)  );
 */
@@ -715,6 +824,7 @@ function ComencaRutina(){
         };
 
         localStorage.setItem("Resposta", JSON.stringify(ResultatTeoria));
+        enviarRespostaSheetsEnComprovar();
 
         document.getElementById("Btn").innerHTML = "<p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"EnviarInfo()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Següent</span></span></p>";
         document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Dades.Resposta;
@@ -730,6 +840,7 @@ function ComencaRutina(){
         var Resposta =  Dades.Resposta;
         console.log(RespostaTeorica);
         var CorreccioArray = corregir(Resposta, RespostaTeorica);  //[HTML correccio, % acert]
+        enviarRespostaSheetsEnComprovar();
 
         //VISUALITZACIÓ DE LA CORRECCIÓ
         if(CorreccioArray[1]<1){
@@ -753,10 +864,70 @@ function ComencaRutina(){
     }
 
 }
+function mostrarCarregaSeguentExercici() {
+       var DivDesplegable = document.getElementById("container");
+       if (!DivDesplegable) {
+           return;
+       }
+
+       DivDesplegable.innerHTML ="";
+       let maxim = 8;
+       let Aleatori = Math.floor(Math.random() * maxim) +1;
+       DivDesplegable.innerHTML= "<video autoplay loop><source src=\"img/" + Aleatori + ".mp4\" type=\"video/mp4\"></video>";
+}
+
+function carregarNouExerciciDesDeDades(data) {
+           localStorage.clear();
+           localStorage.setItem("Dades", JSON.stringify(data)  );
+           var Dades = JSON.parse(localStorage.getItem("Dades"));
+
+           setTimeout(CarregarNouExercici, 2000);
+             function CarregarNouExercici(){
+                 CrearDom();
+                 document.getElementById("Apartat").innerHTML = Dades.Apartat;
+                 document.getElementById("Questio").innerHTML = Dades.Questio;
+                 if(Dades.Audio != ""){
+                     document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>";
+                     }
+
+              setTimeout(() => {
+                MathJax.typesetPromise()
+                  .then(() => {
+                    console.log("MathJax ha renderizado el contenido correctamente.");
+                  })
+                  .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
+              }, 500);
+
+              RestaurarRespostaPendentSeguiment();
+             }
+}
 
 
 
 function EnviarInfo(){
+         if (typeof RetrasEnviarResposta !== "undefined") {
+            clearTimeout(RetrasEnviarResposta);
+        }
+
+        mostrarCarregaSeguentExercici();
+
+        enviarRespostaSheets()
+        .then(function (data) {
+            if (!data) {
+                throw new Error("No s'ha rebut la pregunta seguent.");
+            }
+
+            if (window.SeguimentLive && typeof window.SeguimentLive.esborrarActual === "function") {
+                window.SeguimentLive.esborrarActual();
+            }
+
+            carregarNouExerciciDesDeDades(data);
+        })
+        .catch(function (err) {
+           console.warn('Something went wrong.', err);
+           Actualitzar();
+        });
+        return;
          //Borra SetTimeout
          if (typeof RetrasEnviarResposta !== "undefined") {
             clearTimeout(RetrasEnviarResposta);
