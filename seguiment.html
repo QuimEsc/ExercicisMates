@@ -185,11 +185,8 @@
     }
 
     .preview-math {
-      display: -webkit-box;
       max-height: 4.1em;
       overflow: hidden;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 3;
     }
 
     .preview-math mjx-container {
@@ -727,18 +724,20 @@
       const nextAttempt = attempt || 0;
       if (!window.MathJax || typeof MathJax.typesetPromise !== "function") {
         if (nextAttempt < 10) {
-          window.setTimeout(function () {
-            renderMath(elements, nextAttempt + 1);
-          }, 250);
+          return new Promise(function (resolve) {
+            window.setTimeout(function () {
+              resolve(renderMath(elements, nextAttempt + 1));
+            }, 250);
+          });
         }
-        return;
+        return Promise.resolve();
       }
 
       if (typeof MathJax.typesetClear === "function") {
         MathJax.typesetClear(elements);
       }
 
-      MathJax.typesetPromise(elements)
+      return MathJax.typesetPromise(elements)
         .catch(function (err) {
           console.warn("No s'ha pogut renderitzar MathJax en seguiment.", err);
         });
@@ -964,7 +963,11 @@
     }
 
     function getPreviewHtml(item) {
-      return item.previewMath || textToHtml(item.preview || "sense text encara");
+      return item.respostaMath || item.previewMath || textToHtml(item.preview || item.resposta || "sense text encara");
+    }
+
+    function showPreviewEnd(element) {
+      element.scrollTop = element.scrollHeight;
     }
 
     function render() {
@@ -1000,7 +1003,9 @@
 
       if (previewMathElements.length) {
         window.setTimeout(function () {
-          renderMath(previewMathElements);
+          renderMath(previewMathElements).then(function () {
+            previewMathElements.forEach(showPreviewEnd);
+          });
         }, 0);
       }
 
