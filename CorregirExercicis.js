@@ -81,7 +81,7 @@ function obtenirPayloadRespostaSheets() {
         NomAlumne: NomAlumne,
         ID: Dades.ID,
         ID_Exercici: Dades.ID_Exercici,
-        RespostaTeorica: Respostes.Resposta || "",
+        RespostaTeorica: unescapeHtmlForMathText(Respostes.Resposta || ""),
         Retroalimentacio: Respostes.Correction || "",
         Percen: typeof Respostes.PercentatgeAcert === "number" ? Respostes.PercentatgeAcert : 0,
         IP: UserIp || ""
@@ -202,7 +202,7 @@ function corregir(original, contenido)	{
       var contenido=contenido.toString();
     }
     var respostaOriginalAlumne = contenido;
-    var contenido=contenido.trim();
+    var contenido = unescapeHtmlForMathText(contenido).trim();
         
         
         //Comenzamos la corrección
@@ -745,7 +745,7 @@ function ComencaRutina(){
 
             //INFO a enviar
             const question = Dades.Questio;
-            const answer = RespostaAlumne;
+            const answer = unescapeHtmlForMathText(RespostaAlumne);
             const solution = Dades.Resposta;        
             const payload = { question, answer, solution };
     
@@ -1019,9 +1019,23 @@ function EnviarInfo(){
 //FUNCIONS PER A FRACCIONS
 // Funciones globales para convertir texto mixto a LaTeX sin perder el texto normal
 function parseTextToLatex(text) {
-    return text.split('\n').map(function(line) {
+    return text.split(/\r?\n/).map(function(line) {
         return renderMixedMathLine(line);
     }).join('<br>');
+}
+
+function escapeHtmlForMathRender(value) {
+    return (value || "").toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function unescapeHtmlForMathText(value) {
+    return (value || "").toString()
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
 }
 
 function renderMixedMathLine(line) {
@@ -1043,7 +1057,7 @@ function renderLineWithSpecialMath(line) {
             result += renderPlainMixedMathSegment(line.slice(index, special.start));
         }
 
-        result += "\\(" + special.latex + "\\)";
+        result += "\\(" + escapeHtmlForMathRender(special.latex) + "\\)";
         index = special.end;
     }
 
@@ -1060,7 +1074,7 @@ function renderPlainMixedMathSegment(line) {
 
     while (i < tokens.length) {
         if (!canStartMathSegment(tokens[i])) {
-            result += tokens[i].value;
+            result += escapeHtmlForMathRender(tokens[i].value);
             i++;
             continue;
         }
@@ -1083,7 +1097,7 @@ function renderPlainMixedMathSegment(line) {
 
             if (parsedCandidate && shouldRenderAsMath(parsedCandidate, trimmedCandidate, tokens[i].start, tokens[j].end, trimmedStart, trimmedEnd)) {
                 bestEnd = j;
-                bestLatex = "\\(" + parsedCandidate.latex + "\\)";
+                bestLatex = "\\(" + escapeHtmlForMathRender(parsedCandidate.latex) + "\\)";
             }
         }
 
@@ -1091,7 +1105,7 @@ function renderPlainMixedMathSegment(line) {
             result += bestLatex;
             i = bestEnd + 1;
         } else {
-            result += tokens[i].value;
+            result += escapeHtmlForMathRender(tokens[i].value);
             i++;
         }
     }
