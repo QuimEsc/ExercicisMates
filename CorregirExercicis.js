@@ -1118,11 +1118,31 @@ function findNextSpecialMathConstruct(line, startIndex) {
         var special = parseSpecialMathConstructAt(line, i);
         if (special) {
             special.start = i;
+            if (isSpecialConstructPartOfMathExpression(line, special)) {
+                continue;
+            }
             return special;
         }
     }
 
     return null;
+}
+
+function isSpecialConstructPartOfMathExpression(line, special) {
+    if (!special) {
+        return false;
+    }
+
+    var previousIndex = special.start - 1;
+    while (previousIndex >= 0 && /\s/.test(line.charAt(previousIndex))) {
+        previousIndex--;
+    }
+
+    var nextIndex = skipSpaces(line, special.end);
+    var previousChar = previousIndex >= 0 ? line.charAt(previousIndex) : "";
+    var nextChar = nextIndex < line.length ? line.charAt(nextIndex) : "";
+
+    return /[=<>+\-*/^(|]/.test(previousChar) || /[=<>+\-*/^)|]/.test(nextChar);
 }
 
 function parseSpecialMathConstructAt(line, index) {
@@ -1187,6 +1207,26 @@ function parseMatrixConstruct(line, index, keyword, environment) {
         end: block.end,
         latex: "\\begin{" + environment + "}" + rows.join("\\\\") + "\\end{" + environment + "}"
     };
+}
+
+function parseMatrixExpressionToken(line, index) {
+    if (!hasKeywordBoundaryBefore(line, index)) {
+        return null;
+    }
+
+    var matrix = parseMatrixConstruct(line, index, "mat", "pmatrix");
+    if (matrix) {
+        matrix.keyword = "mat";
+        return matrix;
+    }
+
+    var determinant = parseMatrixConstruct(line, index, "det", "vmatrix");
+    if (determinant) {
+        determinant.keyword = "det";
+        return determinant;
+    }
+
+    return null;
 }
 
 function parseSystemConstruct(line, index) {
@@ -1531,6 +1571,19 @@ function tokenizeMixedLine(line) {
             continue;
         }
 
+        var mixedMatrixToken = parseMatrixExpressionToken(line, i);
+        if (mixedMatrixToken) {
+            tokens.push({
+                type: "specialMath",
+                value: line.slice(i, mixedMatrixToken.end),
+                latex: mixedMatrixToken.latex,
+                start: i,
+                end: mixedMatrixToken.end
+            });
+            i = mixedMatrixToken.end;
+            continue;
+        }
+
         if ((chunk === "<" || chunk === ">") && line.charAt(i + 1) === "=") {
             tokens.push({ type: "math", value: line.slice(i, i + 2), start: i, end: i + 2 });
             i += 2;
@@ -1602,7 +1655,7 @@ function containsStructuredMath(node) {
         return false;
     }
 
-    if (node.type === "binary" || node.type === "relation" || node.type === "unary" || node.type === "power" || node.type === "sqrt" || node.type === "func" || node.type === "probability") {
+    if (node.type === "binary" || node.type === "relation" || node.type === "unary" || node.type === "power" || node.type === "sqrt" || node.type === "func" || node.type === "probability" || node.type === "specialMath") {
         return true;
     }
 
@@ -1662,6 +1715,19 @@ function tokenizeMathExpression(expression) {
 
         if (/\s/.test(chunk)) {
             i++;
+            continue;
+        }
+
+        var matrixToken = parseMatrixExpressionToken(expression, i);
+        if (matrixToken) {
+            tokens.push({
+                type: "specialMath",
+                value: expression.slice(i, matrixToken.end),
+                latex: matrixToken.latex,
+                start: i,
+                end: matrixToken.end
+            });
+            i = matrixToken.end;
             continue;
         }
 
@@ -1851,6 +1917,10 @@ function parsePrimaryExpression(state) {
         return { type: "number", value: previousToken(state).value };
     }
 
+    if (matchType(state, "specialMath")) {
+        return { type: "specialMath", latex: previousToken(state).latex };
+    }
+
     if (peekToken(state) && peekToken(state).type === "name" && peekToken(state).value === "P" && peekToken(state, 1) && peekToken(state, 1).type === "op" && peekToken(state, 1).value === "(") {
         advanceToken(state);
         advanceToken(state);
@@ -1930,7 +2000,7 @@ function canStartPrimaryToken(token) {
         return false;
     }
 
-    return token.type === "number" || token.type === "name" || token.type === "sqrt" || (token.type === "op" && token.value === "(");
+    return token.type === "number" || token.type === "name" || token.type === "sqrt" || token.type === "specialMath" || (token.type === "op" && token.value === "(");
 }
 
 function canEndPrimaryToken(token) {
@@ -1938,7 +2008,7 @@ function canEndPrimaryToken(token) {
         return false;
     }
 
-    return token.type === "number" || token.type === "name" || (token.type === "op" && token.value === ")");
+    return token.type === "number" || token.type === "name" || token.type === "specialMath" || (token.type === "op" && token.value === ")");
 }
 
 function matchOperator(state, operator) {
@@ -1980,6 +2050,10 @@ function astToLatex(node) {
 
     if (node.type === "number" || node.type === "name") {
         return node.value;
+    }
+
+    if (node.type === "specialMath") {
+        return node.latex;
     }
 
     if (node.type === "sqrt") {
