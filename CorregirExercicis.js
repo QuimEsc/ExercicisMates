@@ -43,7 +43,11 @@ var EnviamentPerSortidaEnProces = false;
 var EnviamentSheetsPromise = null;
 var PaginaExerciciHaTingutFocus = false;
 var SortidaPaginaTimer = null;
+var FocusForaPaginaTimer = null;
+var FocusForaPaginaInici = 0;
 var SORTIDA_PAGINA_GRACIA_MS = 5000;
+var FOCUS_FORA_PAGINA_GRACIA_MS = 10000;
+var FOCUS_FORA_PAGINA_MAX_MS = 45000;
 var RESPOSTA_ENVIADA_SHEETS_KEY = "RespostaEnviadaSheets";
 var DADES_SEGUENT_SHEETS_KEY = "DadesSeguentSheets";
 
@@ -217,6 +221,37 @@ function cancelLarCanviPerSortidaPagina() {
         window.clearTimeout(SortidaPaginaTimer);
         SortidaPaginaTimer = null;
     }
+}
+
+function cancelLarCanviPerFocusForaPagina() {
+    if (FocusForaPaginaTimer != null) {
+        window.clearTimeout(FocusForaPaginaTimer);
+        FocusForaPaginaTimer = null;
+    }
+}
+
+function programarCanviPerFocusForaPagina() {
+    if (!PaginaExerciciHaTingutFocus || FocusForaPaginaTimer != null) {
+        return;
+    }
+
+    FocusForaPaginaInici = Date.now();
+    FocusForaPaginaTimer = window.setTimeout(function () {
+        var tempsFora = Date.now() - FocusForaPaginaInici;
+        FocusForaPaginaTimer = null;
+
+        if (tempsFora > FOCUS_FORA_PAGINA_MAX_MS) {
+            return;
+        }
+
+        if (document.visibilityState !== "visible") {
+            return;
+        }
+
+        if (typeof document.hasFocus === "function" && !document.hasFocus()) {
+            GestionarBlur();
+        }
+    }, FOCUS_FORA_PAGINA_GRACIA_MS);
 }
 
 function programarCanviPerSortidaPagina() {
