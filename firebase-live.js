@@ -50,6 +50,14 @@ function seguimentGetCleanupIntervalMs() {
 }
 
 function seguimentGetDades() {
+  if (window.SeguimentDadesRenderitzades) {
+    try {
+      return JSON.parse(JSON.stringify(window.SeguimentDadesRenderitzades));
+    } catch (err) {
+      return window.SeguimentDadesRenderitzades;
+    }
+  }
+
   try {
     const raw = localStorage.getItem("Dades");
     return raw ? JSON.parse(raw) : null;
@@ -329,6 +337,10 @@ function seguimentEsMateixaPregunta(item, snapshot) {
     && (item.exerciciId || "").toString() === (snapshot.exerciciId || "").toString();
 }
 
+function seguimentEsMateixAlumne(item, snapshot) {
+  return item && snapshot && item.alumne === snapshot.alumne;
+}
+
 function seguimentRestaurarRespostaPendent() {
   if (!SeguimentDb || seguimentGetRespostaActual().trim()) {
     return Promise.resolve(false);
@@ -380,7 +392,7 @@ function seguimentEsborrarDuplicats(snapshot, currentPath) {
       const updates = {};
       snapshotDb.forEach(function (child) {
         const item = child.val();
-        if (child.key !== currentKey && seguimentEsMateixaPregunta(item, snapshot)) {
+        if (child.key !== currentKey && seguimentEsMateixAlumne(item, snapshot)) {
           updates[`${groupPath}/${child.key}`] = null;
           updates[`comments/${seguimentSafeKey(snapshot.grup)}/${child.key}`] = null;
         }
@@ -471,11 +483,13 @@ function seguimentEnviarAra(force) {
     return Promise.resolve();
   }
 
+  const pathChanged = path !== SeguimentLastPath;
+
   return SeguimentDb.ref(path).set(snapshot)
     .then(function () {
       SeguimentLastPath = path;
       SeguimentLastSignature = signature;
-      if (force) {
+      if (force || pathChanged) {
         seguimentEsborrarDuplicats(snapshot, path);
       }
     })

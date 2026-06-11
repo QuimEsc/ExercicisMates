@@ -41,6 +41,9 @@ var url2 = 'https://script.google.com/macros/s/AKfycbyEL44Kh46RKxhH7FFx2hNwYxUa3
 var RetrasEnviarResposta;
 var EnviamentPerSortidaEnProces = false;
 var EnviamentSheetsPromise = null;
+var PaginaExerciciHaTingutFocus = false;
+var SortidaPaginaTimer = null;
+var SORTIDA_PAGINA_GRACIA_MS = 5000;
 var RESPOSTA_ENVIADA_SHEETS_KEY = "RespostaEnviadaSheets";
 var DADES_SEGUENT_SHEETS_KEY = "DadesSeguentSheets";
 
@@ -55,6 +58,11 @@ function normalitzarTipusCorreccio(tipusCorreccio) {
 
 function esPerfilProfe() {
     return normalitzarTipusCorreccio(sessionStorage.getItem("NomAlumnes")) === "profe";
+}
+
+function tipusCorreccioCanviaEnSortir(tipusCorreccio) {
+    var tipus = normalitzarTipusCorreccio(tipusCorreccio);
+    return tipus === "teoria" || tipus === "test";
 }
 
 function llegirJsonLocalStorage(clau) {
@@ -115,11 +123,18 @@ function enviarRespostaSheets() {
         return Promise.reject(new Error("No hi ha dades suficients per enviar la resposta."));
     }
 
-    EnviamentSheetsPromise = fetch(url, {
+    var body = JSON.stringify(data);
+    var fetchOptions = {
         method: 'POST',
         contentType: 'application/json',
-        body: JSON.stringify(data)
-    })
+        body: body
+    };
+
+    if (EnviamentPerSortidaEnProces && body.length < 60000) {
+        fetchOptions.keepalive = true;
+    }
+
+    EnviamentSheetsPromise = fetch(url, fetchOptions)
     .then(function (response) {
         return response.json();
     })
@@ -143,6 +158,10 @@ function enviarRespostaSheets() {
 }
 
 function enviarRespostaSheetsEnComprovar() {
+    if (EnviamentPerSortidaEnProces) {
+        return;
+    }
+
     enviarRespostaSheets().catch(function (err) {
         console.warn("La resposta es reintentara en premer Seguent.", err);
     });
@@ -170,7 +189,7 @@ function GestionarBlur() {
         return;
     }
 
-    if (normalitzarTipusCorreccio(Dades.TipusCorreccio) !== "teoria") {
+    if (!tipusCorreccioCanviaEnSortir(Dades.TipusCorreccio)) {
         return;
     }
 
@@ -186,6 +205,48 @@ function GestionarBlur() {
     } catch (err) {
         EnviamentPerSortidaEnProces = false;
         console.warn("No s'ha pogut enviar la resposta en perdre el focus.", err);
+    }
+}
+
+function marcarPaginaExerciciAmbFocus() {
+    PaginaExerciciHaTingutFocus = true;
+}
+
+function cancelLarCanviPerSortidaPagina() {
+    if (SortidaPaginaTimer != null) {
+        window.clearTimeout(SortidaPaginaTimer);
+        SortidaPaginaTimer = null;
+    }
+}
+
+function programarCanviPerSortidaPagina() {
+    if (!PaginaExerciciHaTingutFocus || SortidaPaginaTimer != null) {
+        return;
+    }
+
+    SortidaPaginaTimer = window.setTimeout(function () {
+        SortidaPaginaTimer = null;
+        if (document.visibilityState === "hidden") {
+            GestionarBlur();
+        }
+    }, SORTIDA_PAGINA_GRACIA_MS);
+}
+
+function iniciarMonitorSortidaPagina() {
+    if (typeof document.hasFocus === "function" && document.hasFocus()) {
+        marcarPaginaExerciciAmbFocus();
+    }
+}
+
+function marcarDadesRenderitzadesSeguiment(Dades) {
+    try {
+        window.SeguimentDadesRenderitzades = JSON.parse(JSON.stringify(Dades || {}));
+    } catch (err) {
+        window.SeguimentDadesRenderitzades = Dades || {};
+    }
+
+    if (window.SeguimentLive && typeof window.SeguimentLive.enviarAra === "function") {
+        window.SeguimentLive.enviarAra(true);
     }
 }
 
@@ -597,6 +658,7 @@ function prepararDadesDespresEnviamentSheets() {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
+        marcarDadesRenderitzadesSeguiment(Dades);
         // 1r) Configura el observer para disparar MathJax al aparecer texto
         const observer = new MutationObserver((mutations, obs) => {
           if (document.getElementById("Questio").textContent.trim() !== "") {
@@ -626,6 +688,7 @@ function prepararDadesDespresEnviamentSheets() {
         if(Dades.Audio != ""){
             document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
         }
+        marcarDadesRenderitzadesSeguiment(Dades);
         // 1r) Configura el observer para disparar MathJax al aparecer texto
         const observer = new MutationObserver((mutations, obs) => {
           if (document.getElementById("Questio").textContent.trim() !== "") {
@@ -877,6 +940,7 @@ function mostrarCarregaSeguentExercici() {
 }
 
 function carregarNouExerciciDesDeDades(data) {
+           EnviamentPerSortidaEnProces = false;
            localStorage.clear();
            localStorage.setItem("Dades", JSON.stringify(data)  );
            var Dades = JSON.parse(localStorage.getItem("Dades"));
@@ -889,6 +953,7 @@ function carregarNouExerciciDesDeDades(data) {
                  if(Dades.Audio != ""){
                      document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>";
                      }
+                 marcarDadesRenderitzadesSeguiment(Dades);
 
               setTimeout(() => {
                 MathJax.typesetPromise()
@@ -925,6 +990,7 @@ function EnviarInfo(){
         })
         .catch(function (err) {
            console.warn('Something went wrong.', err);
+           EnviamentPerSortidaEnProces = false;
            Actualitzar();
         });
         return;

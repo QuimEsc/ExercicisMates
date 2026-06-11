@@ -7,11 +7,11 @@
     <script type="text/javascript" async
     src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.js">
     </script>
-    <script src="CorregirExercicis.js?v=20260609-matrix-expressions"></script>
+    <script src="CorregirExercicis.js?v=20260611-rendered-live-state"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="firebase-config.js?v=20260526-ttl72"></script>
-    <script src="firebase-live.js?v=20260526-restore-draft"></script>
+    <script src="firebase-live.js?v=20260611-rendered-live-state"></script>
     <link rel="stylesheet" type="text/css" href="gameDictado.css">
     
     <!-- Añadir estilos personalizados -->
@@ -77,12 +77,22 @@
     </div>
 
     <script type="text/javascript">
-      window.addEventListener("load", iniciarProces);
+      window.addEventListener("load", function () {
+        iniciarProces();
+        iniciarMonitorSortidaPagina();
+      });
+      window.addEventListener("focus", marcarPaginaExerciciAmbFocus);
+      document.addEventListener("pointerdown", marcarPaginaExerciciAmbFocus);
+      document.addEventListener("keydown", marcarPaginaExerciciAmbFocus);
       document.addEventListener("visibilitychange", function () {
         if (document.visibilityState === "hidden") {
-          GestionarBlur();
+          programarCanviPerSortidaPagina();
+        } else {
+          cancelLarCanviPerSortidaPagina();
+          marcarPaginaExerciciAmbFocus();
         }
       });
+      window.addEventListener("focus", cancelLarCanviPerSortidaPagina);
       window.addEventListener("pagehide", GestionarBlur);
     </script>
   </body>

@@ -809,18 +809,10 @@
     }
 
     function getIdentity(item) {
-      const base = [
+      return [
         item.groupKey || item.grup || "",
         item.alumne || ""
-      ];
-      const id = item.id || "";
-      const exerciciId = item.exerciciId || "";
-
-      if (id || exerciciId) {
-        return base.concat([id, exerciciId]).join("|");
-      }
-
-      return base.concat([item.preguntaTitol || "", item.pregunta || ""]).join("|");
+      ].join("|");
     }
 
     function getItemPath(item) {
