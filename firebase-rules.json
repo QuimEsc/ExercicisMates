@@ -3,7 +3,7 @@
     "live": {
       ".read": true,
       "$grup": {
-        ".indexOn": ["updatedAt"],
+        ".indexOn": ["updatedAt", "alumne"],
         "$id": {
           ".write": true,
           ".validate": "newData.exists() ? newData.hasChildren(['grup', 'alumne', 'preguntaTitol', 'pregunta', 'preview', 'resposta', 'updatedAt']) : true",

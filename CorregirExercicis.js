@@ -50,6 +50,138 @@ var FOCUS_FORA_PAGINA_GRACIA_MS = 10000;
 var FOCUS_FORA_PAGINA_MAX_MS = 45000;
 var RESPOSTA_ENVIADA_SHEETS_KEY = "RespostaEnviadaSheets";
 var DADES_SEGUENT_SHEETS_KEY = "DadesSeguentSheets";
+var CONTROL_FOCUS_SESSION_KEY = "ControlFocusSessio";
+var CONTROL_FOCUS_SESSION_MS = 55 * 60 * 1000;
+var MotiuEnviamentActual = "normal";
+var AvisFocusTimeoutId = null;
+var AvisFocusPendent = false;
+
+function crearEstatControlFocus(alumne) {
+    return {
+        alumne: alumne || "",
+        iniciSessio: Date.now(),
+        avisMostrat: false,
+        totalPerduesFocus: 0
+    };
+}
+
+function guardarEstatControlFocus(estat) {
+    sessionStorage.setItem(CONTROL_FOCUS_SESSION_KEY, JSON.stringify(estat));
+}
+
+function prepararEstatControlFocusPerAlumne(alumne) {
+    var estat = llegirJsonSessionStorage(CONTROL_FOCUS_SESSION_KEY);
+    var esReutilitzable = estat
+        && estat.alumne === (alumne || "")
+        && Number.isFinite(Number(estat.iniciSessio))
+        && Date.now() - Number(estat.iniciSessio) < CONTROL_FOCUS_SESSION_MS;
+
+    if (!esReutilitzable) {
+        estat = crearEstatControlFocus(alumne);
+    }
+
+    guardarEstatControlFocus(estat);
+    return estat;
+}
+
+function obtenirEstatControlFocus() {
+    var alumne = sessionStorage.getItem("NomAlumnes") || "";
+    var estat = llegirJsonSessionStorage(CONTROL_FOCUS_SESSION_KEY);
+    var sessioCaducada = !estat
+        || estat.alumne !== alumne
+        || !Number.isFinite(Number(estat.iniciSessio))
+        || Date.now() - Number(estat.iniciSessio) >= CONTROL_FOCUS_SESSION_MS;
+
+    if (sessioCaducada) {
+        estat = prepararEstatControlFocusPerAlumne(alumne);
+    }
+
+    return estat;
+}
+
+function llegirJsonSessionStorage(clau) {
+    try {
+        var raw = sessionStorage.getItem(clau);
+        return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+        console.warn("No s'ha pogut llegir " + clau + ".", err);
+        return null;
+    }
+}
+
+function mostrarAvisPerduaFocus() {
+    if (document.visibilityState !== "visible"
+        || (typeof document.hasFocus === "function" && !document.hasFocus())) {
+        AvisFocusPendent = true;
+        return;
+    }
+
+    AvisFocusPendent = false;
+    var avis = document.getElementById("AvisPerduaFocus");
+    if (!avis) {
+        avis = document.createElement("div");
+        avis.id = "AvisPerduaFocus";
+        avis.setAttribute("role", "alert");
+        avis.setAttribute("aria-live", "assertive");
+        avis.style.position = "fixed";
+        avis.style.top = "12px";
+        avis.style.left = "50%";
+        avis.style.transform = "translateX(-50%)";
+        avis.style.zIndex = "10000";
+        avis.style.boxSizing = "border-box";
+        avis.style.width = "min(92vw, 680px)";
+        avis.style.padding = "12px 16px";
+        avis.style.border = "2px solid #b45309";
+        avis.style.borderRadius = "8px";
+        avis.style.background = "#fff7d6";
+        avis.style.color = "#5f370e";
+        avis.style.font = "600 16px/1.4 Arial, sans-serif";
+        avis.style.boxShadow = "0 6px 20px rgba(0, 0, 0, .22)";
+        document.body.appendChild(avis);
+    }
+
+    avis.textContent = "Has eixit de l'activitat. Si tornes a eixir durant aquesta sessio, s'enviara la resposta actual.";
+    avis.hidden = false;
+
+    if (AvisFocusTimeoutId != null) {
+        window.clearTimeout(AvisFocusTimeoutId);
+    }
+    AvisFocusTimeoutId = window.setTimeout(function () {
+        avis.hidden = true;
+        AvisFocusTimeoutId = null;
+    }, 12000);
+}
+
+function mostrarAvisFocusPendent() {
+    if (AvisFocusPendent) {
+        mostrarAvisPerduaFocus();
+    }
+}
+
+function registrarPerduaFocus(motiu) {
+    if (esPerfilProfe()) {
+        return;
+    }
+
+    var dadesActuals = llegirJsonLocalStorage("Dades");
+    if (!dadesActuals || !tipusCorreccioCanviaEnSortir(dadesActuals.TipusCorreccio)) {
+        return;
+    }
+
+    var estat = obtenirEstatControlFocus();
+    estat.totalPerduesFocus = Number(estat.totalPerduesFocus || 0) + 1;
+
+    if (!estat.avisMostrat) {
+        estat.avisMostrat = true;
+        guardarEstatControlFocus(estat);
+        mostrarAvisPerduaFocus();
+        return;
+    }
+
+    guardarEstatControlFocus(estat);
+    MotiuEnviamentActual = motiu || "window_blur";
+    GestionarBlur(MotiuEnviamentActual);
+}
 
 function normalitzarTipusCorreccio(tipusCorreccio) {
     return (tipusCorreccio || "")
@@ -96,7 +228,8 @@ function obtenirPayloadRespostaSheets() {
         RespostaTeorica: unescapeHtmlForMathText(Respostes.Resposta || ""),
         Retroalimentacio: Respostes.Correction || "",
         Percen: typeof Respostes.PercentatgeAcert === "number" ? Respostes.PercentatgeAcert : 0,
-        IP: UserIp || ""
+        IP: UserIp || "",
+        MotiuEnviament: MotiuEnviamentActual || "normal"
     };
 }
 
@@ -111,6 +244,7 @@ function llegirDadesSeguentSheets() {
 function guardarEnviamentSheetsComplet(dadesSeguent) {
     localStorage.setItem(RESPOSTA_ENVIADA_SHEETS_KEY, "1");
     localStorage.setItem(DADES_SEGUENT_SHEETS_KEY, JSON.stringify(dadesSeguent));
+    MotiuEnviamentActual = "normal";
 }
 
 function enviarRespostaSheets() {
@@ -171,7 +305,7 @@ function enviarRespostaSheetsEnComprovar() {
     });
 }
 
-function GestionarBlur() {
+function GestionarBlur(motiu) {
     if (esPerfilProfe()) {
         return;
     }
@@ -199,6 +333,7 @@ function GestionarBlur() {
 
     try {
         EnviamentPerSortidaEnProces = true;
+        MotiuEnviamentActual = motiu || MotiuEnviamentActual || "window_blur";
         if (localStorage.getItem("Resposta") == null) {
             ComencaRutina();
         }
@@ -249,7 +384,7 @@ function programarCanviPerFocusForaPagina() {
         }
 
         if (typeof document.hasFocus === "function" && !document.hasFocus()) {
-            GestionarBlur();
+            registrarPerduaFocus("window_blur");
         }
     }, FOCUS_FORA_PAGINA_GRACIA_MS);
 }
@@ -262,7 +397,7 @@ function programarCanviPerSortidaPagina() {
     SortidaPaginaTimer = window.setTimeout(function () {
         SortidaPaginaTimer = null;
         if (document.visibilityState === "hidden") {
-            GestionarBlur();
+            registrarPerduaFocus("focus_hidden");
         }
     }, SORTIDA_PAGINA_GRACIA_MS);
 }
@@ -623,7 +758,11 @@ function calculateImprovedLevenshteinDistance(a, b) {
 };
 /*---------------FI Levenstein distance algorithm---------------------*/
     function iniciarProces(){
+        var estatFocusAnterior = sessionStorage.getItem(CONTROL_FOCUS_SESSION_KEY);
         sessionStorage.clear();
+        if (estatFocusAnterior) {
+            sessionStorage.setItem(CONTROL_FOCUS_SESSION_KEY, estatFocusAnterior);
+        }
         localStorage.clear();
         Actualitzar();
 
@@ -788,6 +927,7 @@ function CrearDom(){
 function GuardarNomAlumne(){
     var TextSelect = document.getElementById("Alumne").options[document.getElementById("Alumne").selectedIndex].text;
     sessionStorage.setItem('NomAlumnes', TextSelect);   //Carrega el nom de l'alumne        
+    prepararEstatControlFocusPerAlumne(TextSelect);
     
 
     //Guardar la IP de qui es connecta

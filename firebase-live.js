@@ -1,6 +1,8 @@
 let SeguimentDb = null;
 let SeguimentLastPath = "";
 let SeguimentLastSignature = "";
+let SeguimentLastStaticSignature = "";
+let SeguimentLastWriteAt = 0;
 let SeguimentIntervalId = null;
 let SeguimentStartTimeoutId = null;
 let SeguimentCleanupIntervalId = null;
@@ -47,6 +49,16 @@ function seguimentGetTtlMs() {
 function seguimentGetCleanupIntervalMs() {
   const interval = Number(window.LIVE_CLEANUP_INTERVAL_MS);
   return Number.isFinite(interval) && interval > 0 ? Math.max(interval, 60000) : SEGUIMENT_MS_HORA;
+}
+
+function seguimentGetHeartbeatIntervalMs() {
+  const interval = Number(window.LIVE_HEARTBEAT_INTERVAL_MS);
+  return Number.isFinite(interval) && interval >= 20000 ? interval : 60000;
+}
+
+function seguimentPotEnviarHeartbeat() {
+  return document.visibilityState === "visible"
+    && (typeof document.hasFocus !== "function" || document.hasFocus());
 }
 
 function seguimentGetDades() {
@@ -387,7 +399,10 @@ function seguimentEsborrarDuplicats(snapshot, currentPath) {
   const groupPath = `live/${seguimentSafeKey(snapshot.grup)}`;
   const currentKey = currentPath.split("/").pop();
 
-  return SeguimentDb.ref(groupPath).once("value")
+  return SeguimentDb.ref(groupPath)
+    .orderByChild("alumne")
+    .equalTo(snapshot.alumne)
+    .once("value")
     .then(function (snapshotDb) {
       const updates = {};
       snapshotDb.forEach(function (child) {
@@ -411,6 +426,46 @@ function seguimentEsborrarDuplicats(snapshot, currentPath) {
       console.warn("No s'han pogut esborrar duplicats del seguiment.", err);
       return 0;
     });
+}
+
+function seguimentGetStaticSignature(snapshot, path) {
+  return [
+    path,
+    snapshot.grup,
+    snapshot.alumne,
+    snapshot.apartat,
+    snapshot.preguntaTitol,
+    snapshot.pregunta,
+    snapshot.preguntaHtml,
+    snapshot.solucio,
+    snapshot.tipusCorreccio,
+    snapshot.id,
+    snapshot.exerciciId
+  ].join("|");
+}
+
+function seguimentGetDynamicSignature(snapshot, path) {
+  return [
+    path,
+    snapshot.resposta,
+    snapshot.respostaMath,
+    snapshot.respostaGuardada,
+    snapshot.correccioGuardada,
+    snapshot.preview,
+    snapshot.previewMath
+  ].join("|");
+}
+
+function seguimentGetDynamicPayload(snapshot) {
+  return {
+    resposta: snapshot.resposta,
+    respostaMath: snapshot.respostaMath,
+    respostaGuardada: snapshot.respostaGuardada,
+    correccioGuardada: snapshot.correccioGuardada,
+    preview: snapshot.preview,
+    previewMath: snapshot.previewMath,
+    updatedAt: snapshot.updatedAt
+  };
 }
 
 function seguimentNetejarCaducats(grup) {
@@ -467,29 +522,49 @@ function seguimentEnviarAra(force) {
 
   const path = seguimentGetLivePath(snapshot);
   seguimentEscoltarComentaris(path);
-  const signature = [
-    path,
-    snapshot.resposta,
-    snapshot.respostaMath,
-    snapshot.respostaGuardada,
-    snapshot.correccioGuardada,
-    snapshot.preview,
-    snapshot.previewMath,
-    snapshot.pregunta,
-    snapshot.preguntaHtml
-  ].join("|");
+  const staticSignature = seguimentGetStaticSignature(snapshot, path);
+  const dynamicSignature = seguimentGetDynamicSignature(snapshot, path);
+  const pathChanged = path !== SeguimentLastPath;
+  const staticChanged = staticSignature !== SeguimentLastStaticSignature;
+  const heartbeatDue = seguimentPotEnviarHeartbeat()
+    && Date.now() - SeguimentLastWriteAt >= seguimentGetHeartbeatIntervalMs();
+  const onlyHeartbeat = !force
+    && !pathChanged
+    && !staticChanged
+    && dynamicSignature === SeguimentLastSignature
+    && heartbeatDue;
 
-  if (!force && signature === SeguimentLastSignature) {
+  if (!force
+    && !pathChanged
+    && !staticChanged
+    && dynamicSignature === SeguimentLastSignature
+    && !heartbeatDue) {
     return Promise.resolve();
   }
 
-  const pathChanged = path !== SeguimentLastPath;
+  const ref = SeguimentDb.ref(path);
+  const needsFullWrite = pathChanged || staticChanged;
+  let writePromise;
 
-  return SeguimentDb.ref(path).set(snapshot)
+  if (needsFullWrite) {
+    writePromise = ref.set(snapshot);
+  } else if (onlyHeartbeat) {
+    writePromise = ref.update({ updatedAt: snapshot.updatedAt });
+  } else {
+    writePromise = ref.update(seguimentGetDynamicPayload(snapshot))
+      .catch(function (err) {
+        console.warn("L'actualitzacio parcial ha fallat; es reintenta completa.", err);
+        return ref.set(snapshot);
+      });
+  }
+
+  return writePromise
     .then(function () {
       SeguimentLastPath = path;
-      SeguimentLastSignature = signature;
-      if (force || pathChanged) {
+      SeguimentLastSignature = dynamicSignature;
+      SeguimentLastStaticSignature = staticSignature;
+      SeguimentLastWriteAt = Date.now();
+      if (pathChanged) {
         seguimentEsborrarDuplicats(snapshot, path);
       }
     })
@@ -520,6 +595,8 @@ function seguimentEsborrarActual() {
       if (SeguimentLastPath === path || (!lastPathWhenRemoving && SeguimentCommentPath === commentPath)) {
         SeguimentLastPath = "";
         SeguimentLastSignature = "";
+        SeguimentLastStaticSignature = "";
+        SeguimentLastWriteAt = 0;
         seguimentAturarComentaris();
       }
     })
@@ -544,12 +621,8 @@ function seguimentIniciar() {
     }, interval);
   }, jitter);
 
-  seguimentNetejarCaducats(seguimentGetGrup());
-  if (!SeguimentCleanupIntervalId) {
-    SeguimentCleanupIntervalId = window.setInterval(function () {
-      seguimentNetejarCaducats(seguimentGetGrup());
-    }, seguimentGetCleanupIntervalMs());
-  }
+  // La neteja de caducats la fa seguiment.html. Així cada alumne no ha de
+  // llegir el grup complet en iniciar i després cada hora.
 }
 
 try {
