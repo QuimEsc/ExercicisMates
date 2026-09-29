@@ -144,6 +144,19 @@
       background: #f8fbff;
     }
 
+    tr.alumne-fora td {
+      border-top: 2px solid #dc2626;
+      border-bottom: 2px solid #dc2626;
+    }
+
+    tr.alumne-fora td:first-child {
+      border-left: 2px solid #dc2626;
+    }
+
+    tr.alumne-fora td:last-child {
+      border-right: 2px solid #dc2626;
+    }
+
     .pill {
       border-radius: 999px;
       color: white;
@@ -619,6 +632,12 @@
       firebase.initializeApp(window.firebaseConfig);
     }
     const db = firebase.database();
+    const PRESENCIA_CADUCADA_MS = 120 * 1000;
+    let serverOffsetMs = 0;
+    db.ref(".info/serverTimeOffset").on("value", function (snapshot) {
+      const offset = Number(snapshot.val());
+      if (Number.isFinite(offset)) serverOffsetMs = offset;
+    });
     const rowsEl = document.getElementById("liveRows");
     const emptyState = document.getElementById("emptyState");
     const statusLine = document.getElementById("statusLine");
@@ -962,6 +981,14 @@
       element.scrollTop = element.scrollHeight;
     }
 
+    function alumneFora(item) {
+      if ((item.alumne || "").toString().trim().toLowerCase() === "profe") return false;
+      const ultimaPresencia = Number(item.updatedAt);
+      return item.focusState === "HIDDEN"
+        || !Number.isFinite(ultimaPresencia)
+        || Date.now() + serverOffsetMs - ultimaPresencia > PRESENCIA_CADUCADA_MS;
+    }
+
     function render() {
       const items = visibleItems();
       const previewMathElements = [];
@@ -972,6 +999,7 @@
       for (const item of items) {
         const status = getStatus(item);
         const row = document.createElement("tr");
+        row.classList.toggle("alumne-fora", alumneFora(item));
         row.innerHTML = `
           <td><span class="pill ${status.className}">${status.label}</span></td>
           <td class="group"></td>

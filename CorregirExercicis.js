@@ -50,6 +50,11 @@ var FOCUS_FORA_PAGINA_GRACIA_MS = 10000;
 var FOCUS_FORA_PAGINA_MAX_MS = 45000;
 var RESPOSTA_ENVIADA_SHEETS_KEY = "RespostaEnviadaSheets";
 var DADES_SEGUENT_SHEETS_KEY = "DadesSeguentSheets";
+var ENVIAMENT_PENDENT_PREFIX = "ExercicisMates:submission:";
+function netejarEstatExerciciLegacy() {
+    ["Dades", "Resposta", RESPOSTA_ENVIADA_SHEETS_KEY, DADES_SEGUENT_SHEETS_KEY]
+        .forEach(function (clau) { localStorage.removeItem(clau); });
+}
 var CONTROL_FOCUS_SESSION_KEY = "ControlFocusSessio";
 var CONTROL_FOCUS_SESSION_MS = 55 * 60 * 1000;
 var MotiuEnviamentActual = "normal";
@@ -158,8 +163,12 @@ function mostrarAvisFocusPendent() {
     }
 }
 
+function penalitzacioAbandonamentActiva() {
+    return Boolean(window.ControlAbandonament && window.ControlAbandonament.estaActiu());
+}
+
 function registrarPerduaFocus(motiu) {
-    if (esPerfilProfe()) {
+    if (!penalitzacioAbandonamentActiva() || esPerfilProfe()) {
         return;
     }
 
@@ -211,6 +220,48 @@ function llegirJsonLocalStorage(clau) {
     }
 }
 
+function crearSubmissionId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+    }
+    if (!window.crypto || typeof window.crypto.getRandomValues !== "function") {
+        throw new Error("Aquest navegador no pot crear un identificador d'entrega segur.");
+    }
+    var bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    var hex = Array.from(bytes, function (value) {
+        return value.toString(16).padStart(2, "0");
+    }).join("");
+    return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16)
+        + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
+}
+
+function clauEnviamentPendent(dades) {
+    var alumne = sessionStorage.getItem("NomAlumnes");
+    if (!dades || !dades.ID_Exercici || !alumne || !grupSeguiment) return null;
+    return ENVIAMENT_PENDENT_PREFIX + [grupSeguiment, alumne, dades.ID_Exercici]
+        .map(function (part) { return encodeURIComponent(String(part)); }).join(":");
+}
+
+function obtenirPayloadEnviamentPendent() {
+    var dades = llegirJsonLocalStorage("Dades");
+    var clau = clauEnviamentPendent(dades);
+    if (!clau) return null;
+    var pendent = llegirJsonLocalStorage(clau);
+    if (pendent && pendent.payload && pendent.payload.submissionId
+        && pendent.payload.NomAlumne === sessionStorage.getItem("NomAlumnes")
+        && String(pendent.payload.ID_Exercici) === String(dades.ID_Exercici)) {
+        return pendent.payload;
+    }
+    var payload = obtenirPayloadRespostaSheets();
+    if (!payload) return null;
+    payload.submissionId = crearSubmissionId();
+    localStorage.setItem(clau, JSON.stringify({ payload: payload }));
+    return payload;
+}
+
 function obtenirPayloadRespostaSheets() {
     var NomAlumne = sessionStorage.getItem("NomAlumnes");
     var UserIp = sessionStorage.getItem("userIP");
@@ -222,6 +273,7 @@ function obtenirPayloadRespostaSheets() {
     }
 
     return {
+        accio: "enviarResposta",
         NomAlumne: NomAlumne,
         ID: Dades.ID,
         ID_Exercici: Dades.ID_Exercici,
@@ -244,6 +296,8 @@ function llegirDadesSeguentSheets() {
 function guardarEnviamentSheetsComplet(dadesSeguent) {
     localStorage.setItem(RESPOSTA_ENVIADA_SHEETS_KEY, "1");
     localStorage.setItem(DADES_SEGUENT_SHEETS_KEY, JSON.stringify(dadesSeguent));
+    var clau = clauEnviamentPendent(llegirJsonLocalStorage("Dades"));
+    if (clau) localStorage.removeItem(clau);
     MotiuEnviamentActual = "normal";
 }
 
@@ -256,7 +310,7 @@ function enviarRespostaSheets() {
         return EnviamentSheetsPromise;
     }
 
-    var data = obtenirPayloadRespostaSheets();
+    var data = obtenirPayloadEnviamentPendent();
     if (!data) {
         return Promise.reject(new Error("No hi ha dades suficients per enviar la resposta."));
     }
@@ -276,9 +330,16 @@ function enviarRespostaSheets() {
     .then(function (response) {
         return response.json();
     })
-    .then(function (dadesSeguent) {
-        guardarEnviamentSheetsComplet(dadesSeguent);
-        return dadesSeguent;
+    .then(function (rebut) {
+        if (!rebut || rebut.enviat !== true
+            || String(rebut.ID_Exercici) !== String(data.ID_Exercici)
+            || rebut.submissionId !== data.submissionId
+            || !rebut.IDRespostaRegistrada) {
+            throw new Error("El backend no ha confirmat l'entrega d'aquest exercici.");
+        }
+        guardarEnviamentSheetsComplet(rebut);
+        marcarPuntEnviatConfirmat(data.ID_Exercici, rebut.IDRespostaRegistrada);
+        return rebut;
     })
     .catch(function (err) {
         console.warn("No s'ha pogut enviar la resposta a Sheets.", err);
@@ -296,17 +357,18 @@ function enviarRespostaSheets() {
 }
 
 function enviarRespostaSheetsEnComprovar() {
-    if (EnviamentPerSortidaEnProces) {
-        return;
-    }
-
-    enviarRespostaSheets().catch(function (err) {
-        console.warn("La resposta es reintentara en premer Seguent.", err);
+    // La mateixa promesa evita duplicats si GestionarBlur també crida EnviarInfo.
+    enviarRespostaSheets().then(function (rebut) {
+        finalitzarPenalitzacioDespresEntrega(rebut);
+    }).catch(function (err) {
+        EnviamentPerSortidaEnProces = false;
+        console.warn("La resposta no s'ha pogut registrar a Sheets.", err);
+        mostrarErrorEntrega();
     });
 }
 
 function GestionarBlur(motiu) {
-    if (esPerfilProfe()) {
+    if (!penalitzacioAbandonamentActiva() || esPerfilProfe()) {
         return;
     }
 
@@ -366,7 +428,7 @@ function cancelLarCanviPerFocusForaPagina() {
 }
 
 function programarCanviPerFocusForaPagina() {
-    if (!PaginaExerciciHaTingutFocus || FocusForaPaginaTimer != null) {
+    if (!penalitzacioAbandonamentActiva() || !PaginaExerciciHaTingutFocus || FocusForaPaginaTimer != null) {
         return;
     }
 
@@ -390,7 +452,7 @@ function programarCanviPerFocusForaPagina() {
 }
 
 function programarCanviPerSortidaPagina() {
-    if (!PaginaExerciciHaTingutFocus || SortidaPaginaTimer != null) {
+    if (!penalitzacioAbandonamentActiva() || !PaginaExerciciHaTingutFocus || SortidaPaginaTimer != null) {
         return;
     }
 
@@ -757,142 +819,234 @@ function calculateImprovedLevenshteinDistance(a, b) {
     return calculateLevenshteinDistance (a.toLowerCase(), b.toLowerCase());
 };
 /*---------------FI Levenstein distance algorithm---------------------*/
+    var TemaDisponible = null;
+    var IndexPuntVisible = -1;
+    var RenderPuntGeneration = 0;
+    var SolucioEnCarrega = false;
+    var CorreccioEnProces = false;
+
     function iniciarProces(){
-        var estatFocusAnterior = sessionStorage.getItem(CONTROL_FOCUS_SESSION_KEY);
-        sessionStorage.clear();
-        if (estatFocusAnterior) {
-            sessionStorage.setItem(CONTROL_FOCUS_SESSION_KEY, estatFocusAnterior);
-        }
-        localStorage.clear();
+        // Conservar NomAlumnes i els drafts entre recarregues.
+        netejarEstatExerciciLegacy();
         Actualitzar();
-
-
     }
 
-function prepararDadesDespresEnviamentSheets() {
-    if (sessionStorage.getItem("NomAlumnes") == null || !respostaJaEnviadaSheets()) {
-        return;
-    }
-
-    var dadesSeguent = llegirDadesSeguentSheets();
-    localStorage.clear();
-
-    if (dadesSeguent) {
-        localStorage.setItem("Dades", JSON.stringify(dadesSeguent));
-    }
-}
-
-  function Actualitzar() {
-  prepararDadesDespresEnviamentSheets();
-  if(sessionStorage.getItem("NomAlumnes")==null){ //En cas de no tindre nom d'alumnes.
-        var data = { NomAlumne: "" }; // Datos a enviar, vacío inicialmente
-        fetch(url, {
-        method: 'POST',
-        contentType: 'application/json',
-        body: JSON.stringify(data)
-        })
-    .then(function (response) {
-            // The API call was successful!
-            return response.json();})
-    .then(function (data) {
-        // This is the JSON from our response
-        //console.log(data.Sentence);
-        CrearDom();
-        var DivDesplegable = document.getElementById("container");  //Selecciona el ID de container
-        var opcions="<label>Tria el teu nom</label><select id=\"Alumne\">";
-        for(var i=0;i<data.length; i++){
-          opcions += "<option>" + data[i][0] + "</option>";
-        }
-        opcions +="</select><button onclick=\"GuardarNomAlumne()\">Afegir</button>";
-        DivDesplegable.innerHTML = opcions;
-
-      }).catch(function (err) {
-        // There was an error
-        console.warn('Something went wrong.', err);
-      })
-  }else if(localStorage.getItem("Dades") == null){
-        CrearDom();
-        var NomAlumne = sessionStorage.getItem("NomAlumnes");
-        
-        var data = { NomAlumne: NomAlumne }; // Datos a enviar con el nombre del alumno
-        fetch(url, {
-          method: 'POST',
-          contentType: 'application/json',
-          body: JSON.stringify(data)
-        })
-    .then(function (response) {
-        // The API call was successful!
-        return response.json();
-      }).then(function (data) {
-        // This is the JSON from our response
-        localStorage.setItem("Dades", JSON.stringify(data));
-        var Dades = JSON.parse(localStorage.getItem("Dades"));
-        document.getElementById("Apartat").innerHTML = Dades.Apartat;
-        document.getElementById("Questio").innerHTML = Dades.Questio;
-        if(Dades.Audio != ""){
-            document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
-        }
-        marcarDadesRenderitzadesSeguiment(Dades);
-        // 1r) Configura el observer para disparar MathJax al aparecer texto
-        const observer = new MutationObserver((mutations, obs) => {
-          if (document.getElementById("Questio").textContent.trim() !== "") {
-            setTimeout(RenderizarMathJax, 1000);
-            obs.disconnect();
-          }
-            setTimeout(RenderizarMathJax, 5000);
+    function demanarTemaDisponible() {
+        var alumne = sessionStorage.getItem("NomAlumnes");
+        return fetch(url, {
+            method: "POST",
+            contentType: "application/json",
+            body: JSON.stringify({ accio: "carregarTemaDisponible", NomAlumne: alumne })
+        }).then(function (response) { return response.json(); }).then(function (tema) {
+            if (!tema || !Array.isArray(tema.punts) || !Number.isInteger(tema.indexInicial)) {
+                throw new Error("La carrega del tema no ha tornat una llista valida.");
+            }
+            TemaDisponible = tema;
+            IndexPuntVisible = Math.min(tema.indexInicial, tema.punts.length - 1);
+            if (!tema.punts.length) {
+                document.getElementById("container").textContent = "No hi ha punts disponibles.";
+                return tema;
+            }
+            renderitzarPuntDisponible(IndexPuntVisible);
+            return tema;
         });
-        observer.observe(document.getElementById("Questio"), { childList: true, characterData: true, subtree: true });
-        
-        // 2n) Si por algún motivo #Questio ya tenía texto (caso raro), ejecútalo ya:
-        if (document.getElementById("Questio").textContent.trim() !== "") {
-          observer.disconnect();
-          setTimeout(RenderizarMathJax, 1000);
-        }
-        setTimeout(RenderizarMathJax, 5000);
-        RestaurarRespostaPendentSeguiment();
-      }).catch(function (err) {
-        // There was an error
-        console.warn('Something went wrong.', err);
-      })
-    }else{
-            CrearDom();
-        var Dades = JSON.parse(localStorage.getItem("Dades"));
-        document.getElementById("Apartat").innerHTML = Dades.Apartat;
-        document.getElementById("Questio").innerHTML = Dades.Questio;
-        if(Dades.Audio != ""){
-            document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
-        }
-        marcarDadesRenderitzadesSeguiment(Dades);
-        // 1r) Configura el observer para disparar MathJax al aparecer texto
-        const observer = new MutationObserver((mutations, obs) => {
-          if (document.getElementById("Questio").textContent.trim() !== "") {
-            setTimeout(RenderizarMathJax, 1000);
-            obs.disconnect();
-          }
-            setTimeout(RenderizarMathJax, 5000);
-        });
-        observer.observe(document.getElementById("Questio"), { childList: true, characterData: true, subtree: true });
-        
-        // 2n) Si por algún motivo #Questio ya tenía texto (caso raro), ejecútalo ya:
-        if (document.getElementById("Questio").textContent.trim() !== "") {
-          observer.disconnect();
-          setTimeout(RenderizarMathJax, 1000);
-        }
-          setTimeout(RenderizarMathJax, 5000);
-          RestaurarRespostaPendentSeguiment();
     }
-}
 
-function RestaurarRespostaPendentSeguiment() {
+    function Actualitzar() {
+        if (!sessionStorage.getItem("NomAlumnes")) {
+            fetch(url, {
+                method: "POST",
+                contentType: "application/json",
+                body: JSON.stringify({ NomAlumne: "" })
+            }).then(function (response) { return response.json(); }).then(function (data) {
+                var container = document.getElementById("container");
+                var select = document.createElement("select");
+                select.id = "Alumne";
+                data.forEach(function (fila) {
+                    var option = document.createElement("option");
+                    option.textContent = fila[0];
+                    select.appendChild(option);
+                });
+                container.innerHTML = '<label>Tria el teu nom</label>';
+                container.appendChild(select);
+                var boto = document.createElement("button");
+                boto.textContent = "Afegir";
+                boto.addEventListener("click", GuardarNomAlumne);
+                container.appendChild(boto);
+            }).catch(function (err) { console.warn("No s'han pogut carregar els noms.", err); });
+            return;
+        }
+        var container = document.getElementById("container");
+        container.textContent = "Carregant els punts disponibles...";
+        demanarTemaDisponible().catch(function (err) {
+            console.warn("No s'han pogut carregar els punts disponibles.", err);
+            container.textContent = "No s'han pogut carregar els punts. Recarrega la pagina.";
+        });
+    }
+
+    function guardarDraftAbansDeNavegar() {
+        // Cada input ja ha guardat localment; buidem sols el debounce remot.
+        if (window.DraftResposta && typeof window.DraftResposta.flushPendents === "function") {
+            window.DraftResposta.flushPendents();
+        }
+    }
+
+    function actualitzarBotonsNavegacio() {
+        var anterior = document.getElementById("PuntAnterior");
+        var seguent = document.getElementById("PuntSeguent");
+        if (!anterior || !seguent || !TemaDisponible) return;
+        var ultimIndex = TemaDisponible.punts.length - 1;
+        var punt = TemaDisponible.punts[IndexPuntVisible];
+        var enviat = Boolean(punt && punt.enviat === true);
+        anterior.disabled = IndexPuntVisible <= 0;
+        seguent.disabled = IndexPuntVisible >= ultimIndex;
+        var estat = document.getElementById("EstatRespostaEnviada");
+        if (estat) estat.hidden = !enviat;
+        var avisLimit = document.getElementById("AvisLimitPunts");
+        if (avisLimit) avisLimit.hidden = !(enviat && IndexPuntVisible === ultimIndex);
+    }
+
+    function marcarPuntEnviatConfirmat(idExercici, idResposta) {
+        if (!TemaDisponible) return;
+        TemaDisponible.punts.forEach(function (punt) {
+            if (String(punt.ID_Exercici) === String(idExercici)) {
+                punt.ID = idResposta;
+                punt.enviat = true;
+            }
+        });
+        var dades = llegirJsonLocalStorage("Dades");
+        if (dades && String(dades.ID_Exercici) === String(idExercici)) {
+            dades.ID = idResposta;
+            localStorage.setItem("Dades", JSON.stringify(dades));
+            marcarDadesRenderitzadesSeguiment(dades);
+            actualitzarBotonsNavegacio();
+        }
+        var error = document.getElementById("EstatErrorEntrega");
+        if (error) error.hidden = true;
+    }
+
+    function mostrarBotoDespresComprovar() {
+        var boto = document.getElementById("Btn");
+        if (!boto) return;
+        if (esPerfilProfe()) {
+            boto.innerHTML = '<button type="button" onclick="EnviarInfo()">Continuar</button>';
+        } else {
+            boto.innerHTML = "";
+        }
+    }
+
+    function mostrarErrorEntrega() {
+        var error = document.getElementById("EstatErrorEntrega");
+        if (error) error.hidden = false;
+    }
+
+    function actualitzarTemaDisponible() {
+        if (EnviamentSheetsPromise || SolucioEnCarrega || CorreccioEnProces) {
+            return Promise.resolve(false);
+        }
+        var boto = document.getElementById("ActualitzarPunts");
+        if (boto) boto.disabled = true;
+        return demanarTemaDisponible().catch(function (err) {
+            console.warn("No s'han pogut actualitzar els punts.", err);
+            if (boto) boto.disabled = false;
+            return false;
+        });
+    }
+
+    function finalitzarPenalitzacioDespresEntrega(rebut) {
+        if (!EnviamentPerSortidaEnProces) return false;
+        EnviamentPerSortidaEnProces = false;
+        if (!penalitzacioAbandonamentActiva() || !rebut || rebut.enviat !== true
+            || !TemaDisponible || IndexPuntVisible >= TemaDisponible.punts.length - 1) {
+            return false;
+        }
+        return navegarPuntDisponible(IndexPuntVisible + 1);
+    }
+
+    function navegarPuntDisponible(index) {
+        if (!TemaDisponible || !Number.isInteger(index)
+            || index < 0 || index >= TemaDisponible.punts.length
+            || index === IndexPuntVisible || SolucioEnCarrega
+            || CorreccioEnProces || EnviamentSheetsPromise) {
+            return false;
+        }
+        guardarDraftAbansDeNavegar();
+        if (RetrasEnviarResposta) {
+            clearTimeout(RetrasEnviarResposta);
+            RetrasEnviarResposta = null;
+        }
+        IndexPuntVisible = index;
+        renderitzarPuntDisponible(index);
+        return true;
+    }
+
+    function renderitzarPuntDisponible(index) {
+        if (!TemaDisponible || !Number.isInteger(index)
+            || index < 0 || index >= TemaDisponible.punts.length) return false;
+        var punt = TemaDisponible.punts[index];
+        if (!punt || punt.Resposta !== undefined) {
+            punt = Object.assign({}, punt);
+            delete punt.Resposta;
+            TemaDisponible.punts[index] = punt;
+        }
+        RenderPuntGeneration++;
+        netejarEstatExerciciLegacy();
+        localStorage.setItem("Dades", JSON.stringify(punt));
+        CrearDom();
+        document.getElementById("Apartat").innerHTML = punt.Apartat || "";
+        document.getElementById("Questio").innerHTML = punt.Questio || "";
+        document.getElementById("Audio").innerHTML = punt.Audio
+            ? '<audio controls><source src="Audio/' + encodeURIComponent(punt.Audio) + '.mp3" type="audio/mpeg"></audio>'
+            : "";
+        // Solucio, correccio i percentatge s'esborren amb el nou DOM.
+        marcarDadesRenderitzadesSeguiment(punt);
+        actualitzarBotonsNavegacio();
+        actualitzarControlAbandonamentUI();
+        var clauPendent = clauEnviamentPendent(punt);
+        if (clauPendent && localStorage.getItem(clauPendent)) mostrarErrorEntrega();
+        RestaurarDraftResposta();
+        if (window.MathJax && typeof MathJax.typesetPromise === "function") {
+            MathJax.typesetPromise().catch(function (err) { console.warn(err); });
+        }
+        return true;
+    }
+
+function RestaurarDraftResposta() {
+    var generacio = RenderPuntGeneration;
     window.setTimeout(function () {
-        if (
-            window.SeguimentLive
-            && typeof window.SeguimentLive.restaurarRespostaPendent === "function"
-        ) {
-            window.SeguimentLive.restaurarRespostaPendent();
+        if (generacio === RenderPuntGeneration
+            && window.DraftResposta && typeof window.DraftResposta.restaurar === "function") {
+            window.DraftResposta.restaurar();
         }
     }, 250);
 }
+
+function actualitzarControlAbandonamentUI() {
+    var control = document.getElementById("ControlEixida");
+    var etiqueta = document.getElementById("ControlEixidaEstat");
+    if (!control || !etiqueta) return;
+    var actiu = Boolean(window.ControlAbandonament && window.ControlAbandonament.estaActiu());
+    control.checked = actiu;
+    etiqueta.textContent = "Control d'eixida: " + (actiu ? "ACTIVAT" : "DESACTIVAT");
+}
+
+function canviarControlAbandonament(actiu) {
+    if (!esPerfilProfe() || !window.ControlAbandonament) return;
+    window.ControlAbandonament.establir(actiu).catch(function (err) {
+        console.warn("No s'ha pogut canviar el control d'eixida.", err);
+        actualitzarControlAbandonamentUI();
+    });
+}
+window.addEventListener("control-abandonament-change", function () {
+    actualitzarControlAbandonamentUI();
+    if (!penalitzacioAbandonamentActiva()) {
+        cancelLarCanviPerSortidaPagina();
+        cancelLarCanviPerFocusForaPagina();
+        AvisFocusPendent = false;
+        var avis = document.getElementById("AvisPerduaFocus");
+        if (avis) avis.hidden = true;
+    }
+});
 
 function CrearDom(){
   //Crear el nou DOM
@@ -915,7 +1069,12 @@ function CrearDom(){
         "<h3>La meua resposta</h3>",
         "<div id=\"Camp\" class=\"student-answer-editor\" contenteditable=\"true\" role=\"textbox\" aria-label=\"La meua resposta\"></div>",
         "</section>",
-        "<div id=\"Btn\" class=\"action-panel\"><p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"ComencaRutina()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Comprovar</span></span></p></div>"
+        "<div id=\"EstatRespostaEnviada\" class=\"delivery-status\" hidden>Resposta enviada</div>",
+        "<div id=\"EstatErrorEntrega\" class=\"delivery-error\" hidden>Entrega pendent de confirmar. <button type=\"button\" onclick=\"EnviarInfo()\">Reintentar entrega</button></div>",
+        "<div id=\"Btn\" class=\"action-panel\"><p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"ComencaRutina()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Comprovar</span></span></p></div>",
+        "<div id=\"NavegacioPunts\" class=\"action-panel\"><button id=\"PuntAnterior\" type=\"button\" onclick=\"navegarPuntDisponible(IndexPuntVisible - 1)\">Anterior</button> <button id=\"PuntSeguent\" type=\"button\" onclick=\"navegarPuntDisponible(IndexPuntVisible + 1)\">Següent</button></div>",
+        "<div id=\"AvisLimitPunts\" class=\"available-limit\" hidden>No hi ha cap punt nou disponible. <button id=\"ActualitzarPunts\" type=\"button\" onclick=\"actualitzarTemaDisponible()\">Actualitzar punts</button></div>",
+        esPerfilProfe() ? "<label id=\"ControlEixidaPanel\"><input id=\"ControlEixida\" type=\"checkbox\" onchange=\"canviarControlAbandonament(this.checked)\"><span id=\"ControlEixidaEstat\">Control d'eixida: DESACTIVAT</span></label>" : ""
     ].join("");
 
     DivContainer.innerHTML=HtmlContainer; //Crea el nom DOM
@@ -950,6 +1109,58 @@ function GuardarNomAlumne(){
 
 
 function ComencaRutina(){
+    if (EnviamentSheetsPromise || CorreccioEnProces) return;
+    var clauIntentAnterior = clauEnviamentPendent(llegirJsonLocalStorage("Dades"));
+    if (!respostaJaEnviadaSheets()
+        && clauIntentAnterior && localStorage.getItem(clauIntentAnterior)) {
+        // Sense confirmacio, qualsevol reintent conserva el mateix payload i ID.
+        EnviarInfo();
+        return;
+    }
+    if (respostaJaEnviadaSheets()) {
+        // Despres de confirmar, Comprovar inicia un nou intent pedagogic.
+        if (clauIntentAnterior) localStorage.removeItem(clauIntentAnterior);
+        localStorage.removeItem("Resposta");
+        localStorage.removeItem(RESPOSTA_ENVIADA_SHEETS_KEY);
+        localStorage.removeItem(DADES_SEGUENT_SHEETS_KEY);
+        if (RetrasEnviarResposta) {
+            clearTimeout(RetrasEnviarResposta);
+            RetrasEnviarResposta = null;
+        }
+    }
+    var dadesActuals = llegirJsonLocalStorage("Dades");
+    if (TemaDisponible && dadesActuals && dadesActuals.Resposta === undefined) {
+        if (SolucioEnCarrega) return;
+        SolucioEnCarrega = true;
+        var id = String(dadesActuals.ID_Exercici);
+        fetch(url, {
+            method: "POST",
+            contentType: "application/json",
+            body: JSON.stringify({
+                accio: "obtenirSolucioDisponible",
+                NomAlumne: sessionStorage.getItem("NomAlumnes"),
+                ID_Exercici: id
+            })
+        }).then(function (response) { return response.json(); }).then(function (resultat) {
+            var encaraActual = llegirJsonLocalStorage("Dades");
+            if (!encaraActual || String(encaraActual.ID_Exercici) !== id
+                || String(resultat.ID_Exercici) !== id
+                || resultat.Resposta === undefined) {
+                throw new Error("La solucio no correspon al punt visible.");
+            }
+            encaraActual.Resposta = resultat.Resposta;
+            localStorage.setItem("Dades", JSON.stringify(encaraActual));
+            marcarDadesRenderitzadesSeguiment(encaraActual);
+            SolucioEnCarrega = false;
+            ComencaRutina();
+        }).catch(function (err) {
+            SolucioEnCarrega = false;
+            console.warn("No s'ha pogut obtenir la solucio.", err);
+            var correccio = document.getElementById("Correcio");
+            if (correccio) correccio.textContent = "No s'ha pogut comprovar. Torna-ho a intentar.";
+        });
+        return;
+    }
 
     //Reemplaçar codi HTML en RESPOSTA
     const LlevarCodiHtml = function (x){
@@ -970,6 +1181,8 @@ function ComencaRutina(){
       };
 
     const autocorreccio = function(RespostaAlumne){
+        CorreccioEnProces = true;
+        var generacioCorreccio = RenderPuntGeneration;
         function ActualitzarDades(Resultat){
             if(localStorage.getItem("Resposta") == null){
                 localStorage.setItem("Resposta", JSON.stringify(Resultat)  );  //Guarda les respostes en Magatzenament Local
@@ -998,9 +1211,11 @@ function ComencaRutina(){
             return response.json();
           }).then(function (data) {
             // This is the JSON from our response
+            if (generacioCorreccio !== RenderPuntGeneration) return data;
             ActualitzarDades(data);
             enviarRespostaSheetsEnComprovar();
-/*            localStorage.clear();
+            CorreccioEnProces = false;
+/*            netejarEstatExerciciLegacy();
             localStorage.setItem("Dades", JSON.stringify(data)  );
 */
 
@@ -1009,7 +1224,8 @@ function ComencaRutina(){
             //TEMPS ESPERA PER CARREGAR NOVA PÀGINA
                 setTimeout(CarregarNouExercici, 1000);
               function CarregarNouExercici(){
-                document.getElementById("Btn").innerHTML = "<p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"EnviarInfo()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Corregir</span></span></p>"; //Canvia nom botó
+                if (generacioCorreccio !== RenderPuntGeneration) return;
+                mostrarBotoDespresComprovar();
                 //document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Feedback.Resposta;
                 document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b></br>" + Feedback.Correction;
                 //document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b>" + "$$" +Feedback.Correction + "$$";      //Aço recomana ChatGpt per renderitzar MathJax
@@ -1037,6 +1253,8 @@ function ComencaRutina(){
 
             return data;
           }).catch(function (err) {
+            CorreccioEnProces = false;
+            if (generacioCorreccio !== RenderPuntGeneration) return;
             // There was an error
             console.warn('Something went wrong.', err);
 
@@ -1064,7 +1282,7 @@ function ComencaRutina(){
         localStorage.setItem("Resposta", JSON.stringify(ResultatTeoria));
         enviarRespostaSheetsEnComprovar();
 
-        document.getElementById("Btn").innerHTML = "<p style=\"text-decoration:none;display:inline-block;color:#ffffff;background-color:#3AAEE0;border-radius:4px;width:auto;border-top:1px solid #3AAEE0;border-right:1px solid #3AAEE0;border-bottom:1px solid #3AAEE0;border-left:1px solid #3AAEE0;padding-top:5px;padding-bottom:5px;font-family:Arial, Helvetica Neue, Helvetica, sans-serif;text-align:center;mso-border-alt:none;word-break:keep-all;\"><span onclick=\"EnviarInfo()\" style=\"padding-left:20px;padding-right:20px;font-size:16px;display:inline-block;letter-spacing:normal;\"><span style=\"font-size: 16px; line-height: 2; word-break: break-word; mso-line-height-alt: 32px;\">Següent</span></span></p>";
+        mostrarBotoDespresComprovar();
         document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Dades.Resposta;
         document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>COPIA LA RESPOSTA CORRECTA I DESPRÉS PREM SEGÜENT.</u></b>";
         document.getElementById("Camp").innerText = "";
@@ -1095,7 +1313,10 @@ function ComencaRutina(){
             setTimeout(RenderizarMathJax, 1500);
     
         }else{
-            EnviarInfo();
+            document.getElementById("Resposta").innerHTML = "<b style=\"color:blue;\"><u>RESPOSTA: </u></b>" + Dades.Resposta;
+            document.getElementById("Correcio").innerHTML = "<b style=\"color:blue;\"><u>CORRECCI&Oacute;: </u></b>" + CorreccioArray[0];
+            mostrarBotoDespresComprovar();
+            setTimeout(RenderizarMathJax, 1500);
         }
     }else{
         var CorreccioArray = autocorreccio(RespostaAlumne);  //AutoAvaluació automàtica
@@ -1116,7 +1337,7 @@ function mostrarCarregaSeguentExercici() {
 
 function carregarNouExerciciDesDeDades(data) {
            EnviamentPerSortidaEnProces = false;
-           localStorage.clear();
+           netejarEstatExerciciLegacy();
            localStorage.setItem("Dades", JSON.stringify(data)  );
            var Dades = JSON.parse(localStorage.getItem("Dades"));
 
@@ -1138,122 +1359,31 @@ function carregarNouExerciciDesDeDades(data) {
                   .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
               }, 500);
 
-              RestaurarRespostaPendentSeguiment();
+              RestaurarDraftResposta();
              }
 }
 
 
 
 function EnviarInfo(){
-         if (typeof RetrasEnviarResposta !== "undefined") {
-            clearTimeout(RetrasEnviarResposta);
+    if (RetrasEnviarResposta) {
+        clearTimeout(RetrasEnviarResposta);
+        RetrasEnviarResposta = null;
+    }
+    // La confirmacio conserva el punt i la correccio; nomes Profe pot
+    // demanar explicitament una nova snapshot despres d'una entrega real.
+    return enviarRespostaSheets().then(function (rebut) {
+        if (finalitzarPenalitzacioDespresEntrega(rebut)) return rebut;
+        if (TemaDisponible && esPerfilProfe() && rebut && rebut.enviat === true) {
+            return actualitzarTemaDisponible();
         }
-
-        mostrarCarregaSeguentExercici();
-
-        enviarRespostaSheets()
-        .then(function (data) {
-            if (!data) {
-                throw new Error("No s'ha rebut la pregunta seguent.");
-            }
-
-            if (window.SeguimentLive && typeof window.SeguimentLive.esborrarActual === "function") {
-                window.SeguimentLive.esborrarActual();
-            }
-
-            carregarNouExerciciDesDeDades(data);
-        })
-        .catch(function (err) {
-           console.warn('Something went wrong.', err);
-           EnviamentPerSortidaEnProces = false;
-           Actualitzar();
-        });
-        return;
-         //Borra SetTimeout
-         if (typeof RetrasEnviarResposta !== "undefined") {
-            clearTimeout(RetrasEnviarResposta);
-        }
-         //Envia la informació al servidor per actulitzar la BBDD
-           // Recupera la información del almacenamiento local y de sesión
-           var NomAlumne = sessionStorage.getItem("NomAlumnes"); // Nombre del alumno
-           var UserIp = sessionStorage.getItem("userIP"); // Dirección IP del usuario
-           var Dades = JSON.parse(localStorage.getItem("Dades")); // Datos de ejercicios
-           var Respostes = JSON.parse(localStorage.getItem("Resposta")); // Respuestas
-   
-           // Crea el objeto de datos a enviar
-           var data = {
-           NomAlumne: NomAlumne,
-           ID: Dades.ID,
-           ID_Exercici: Dades.ID_Exercici,
-           RespostaTeorica: Respostes.Resposta,
-           Retroalimentacio: Respostes.Correction,
-           Percen: Respostes.PercentatgeAcert,
-           IP: UserIp
-           };
-
-        if (window.SeguimentLive && typeof window.SeguimentLive.esborrarActual === "function") {
-            window.SeguimentLive.esborrarActual();
-        }
-   
-        //BORRA LocalStore
-        localStorage.clear();
-        localStorage.setItem("Dades", JSON.stringify(data)  )
-
-       //BORRA EL DOM
-       var DivDesplegable = document.getElementById("container");  //Selecciona el ID de container
-       DivDesplegable.innerHTML ="";
-       //FI borrar DOM
-       
-       //Publica imatge d'ÀNIM
-       let maxim = 8;  //Nombre mmàxim fotos
-       let Aleatori = Math.floor(Math.random() * maxim) +1;
-       DivDesplegable.innerHTML= "<video autoplay loop><source src=\"img/" + Aleatori + ".mp4\" type=\"video/mp4\"></video>"; //Crea animació ànim 	
-   
-   
-       //Fi publicació Ànim
-   
-   
-       // Realiza la solicitud POST con fetch
-       fetch(url, {
-           method: 'POST',
-           contentType: 'application/json',
-           body: JSON.stringify(data) // Convierte el objeto a JSON
-       })
-       .then(function (response) {
-           // The API call was successful!
-           return response.json();
-         }).then(function (data) {
-           // This is the JSON from our response
-           //console.log(data.Sentence);
-           localStorage.clear();
-           localStorage.setItem("Dades", JSON.stringify(data)  );
-           var Dades = JSON.parse(localStorage.getItem("Dades"));
-     
-           //TEMPS ESPERA PER CARREGAR NOVA PÀGINA
-               setTimeout(CarregarNouExercici, 2000);
-             function CarregarNouExercici(){
-                 CrearDom();		//Crea el nou dom
-                 document.getElementById("Apartat").innerHTML = Dades.Apartat;
-                 document.getElementById("Questio").innerHTML = Dades.Questio;
-                 if(Dades.Audio != ""){
-                     document.getElementById("Audio").innerHTML =  "<audio controls autoplay><source src=\"Audio/" + Dades.Audio + ".mp3\" type=\"audio/mpeg\"></audio>"
-                     }
-                 
-                   // Asegúrate de que MathJax renderice el contenido después de que se haya actualizado
-              setTimeout(() => {
-                MathJax.typesetPromise()
-                  .then(() => {
-                    console.log("MathJax ha renderizado el contenido correctamente.");
-                  })
-                  .catch((err) => console.error("Error al renderizar MathJax: ", err.message));
-              }, 500); // Retraso pequeño para asegurar que el DOM está listo
-                   
-              RestaurarRespostaPendentSeguiment();
-             }    
-         }).catch(function (err) {
-           // There was an error
-           console.warn('Something went wrong.', err);
-         });    //envia dades al servidor
+        return rebut;
+    }).catch(function (err) {
+        EnviamentPerSortidaEnProces = false;
+        mostrarErrorEntrega();
+        console.warn("No s'ha pogut confirmar l'entrega.", err);
+        return false;
+    });
 }
 
 
@@ -2457,15 +2587,21 @@ function actualitzarVistaMatematica() {
 
 function initEditor() {
   const editor = document.getElementById('Camp');
-  if (!editor) {
+  if (!editor || editor.dataset.draftInputReady === "1") {
     return;
   }
+  editor.dataset.draftInputReady = "1";
 
   // Creamos un handler debounced de 1000 ms
   const debouncedHandle = debounce(actualitzarVistaMatematica, 600);
 
   // Cada vez que cambie el contenido, reiniciamos el timer
-  editor.addEventListener('input', debouncedHandle);
+  editor.addEventListener('input', function () {
+    if (window.DraftResposta && typeof window.DraftResposta.guardarEnInput === "function") {
+      window.DraftResposta.guardarEnInput(editor.innerText || "");
+    }
+    debouncedHandle();
+  });
   actualitzarVistaMatematica();
 }
 

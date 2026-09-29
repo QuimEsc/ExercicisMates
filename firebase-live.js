@@ -3,6 +3,7 @@ let SeguimentLastPath = "";
 let SeguimentLastSignature = "";
 let SeguimentLastStaticSignature = "";
 let SeguimentLastWriteAt = 0;
+let SeguimentFocusState = null;
 let SeguimentIntervalId = null;
 let SeguimentStartTimeoutId = null;
 let SeguimentCleanupIntervalId = null;
@@ -205,29 +206,11 @@ function seguimentLimitarResposta(text) {
   return resposta.slice(resposta.length - maxChars);
 }
 
-function seguimentAplicarRespostaPendent(resposta) {
-  const editor = document.getElementById("Camp");
-  const text = (resposta || "").toString();
-
-  if (!editor || !text.trim() || (editor.innerText || "").trim()) {
-    return false;
-  }
-
-  editor.innerText = text;
-  editor.dispatchEvent(new Event("input", { bubbles: true }));
-
-  if (typeof actualitzarVistaMatematica === "function") {
-    actualitzarVistaMatematica();
-  }
-
-  return true;
-}
-
 function seguimentGetSnapshot() {
   const Dades = seguimentGetDades();
   const alumne = sessionStorage.getItem("NomAlumnes");
 
-  if (!Dades || !alumne || !seguimentTipusAmbSeguiment(Dades.TipusCorreccio)) {
+  if (!Dades || !alumne) {
     return null;
   }
 
@@ -268,6 +251,7 @@ function seguimentGetSnapshot() {
     tipusCorreccio: seguimentLimitarText(Dades.TipusCorreccio || "", 40),
     id: (Dades.ID || "").toString(),
     exerciciId: exerciciId,
+    focusState: SeguimentFocusState || (seguimentPotEnviarHeartbeat() ? "VISIBLE" : "HIDDEN"),
     updatedAt: Date.now()
   };
 }
@@ -342,53 +326,8 @@ function seguimentEscoltarComentaris(path) {
   });
 }
 
-function seguimentEsMateixaPregunta(item, snapshot) {
-  return item
-    && item.alumne === snapshot.alumne
-    && (item.id || "").toString() === (snapshot.id || "").toString()
-    && (item.exerciciId || "").toString() === (snapshot.exerciciId || "").toString();
-}
-
 function seguimentEsMateixAlumne(item, snapshot) {
   return item && snapshot && item.alumne === snapshot.alumne;
-}
-
-function seguimentRestaurarRespostaPendent() {
-  if (!SeguimentDb || seguimentGetRespostaActual().trim()) {
-    return Promise.resolve(false);
-  }
-
-  const snapshot = seguimentGetSnapshot();
-  if (!snapshot) {
-    return Promise.resolve(false);
-  }
-
-  const path = seguimentGetLivePath(snapshot);
-  const cutoff = Date.now() - seguimentGetTtlMs();
-
-  return SeguimentDb.ref(path).once("value")
-    .then(function (snapshotDb) {
-      const item = snapshotDb.val();
-      const updatedAt = Number(item && item.updatedAt);
-
-      if (
-        !item
-        || !seguimentEsMateixaPregunta(item, snapshot)
-        || (Number.isFinite(updatedAt) && updatedAt <= cutoff)
-        || !seguimentAplicarRespostaPendent(item.resposta)
-      ) {
-        return false;
-      }
-
-      SeguimentLastPath = path;
-      return seguimentEnviarAra(true).then(function () {
-        return true;
-      });
-    })
-    .catch(function (err) {
-      console.warn("No s'ha pogut restaurar la resposta pendent.", err);
-      return false;
-    });
 }
 
 function seguimentEsborrarDuplicats(snapshot, currentPath) {
@@ -451,6 +390,7 @@ function seguimentGetDynamicSignature(snapshot, path) {
     snapshot.respostaMath,
     snapshot.respostaGuardada,
     snapshot.correccioGuardada,
+    snapshot.focusState,
     snapshot.preview,
     snapshot.previewMath
   ].join("|");
@@ -462,9 +402,10 @@ function seguimentGetDynamicPayload(snapshot) {
     respostaMath: snapshot.respostaMath,
     respostaGuardada: snapshot.respostaGuardada,
     correccioGuardada: snapshot.correccioGuardada,
+    focusState: snapshot.focusState,
     preview: snapshot.preview,
     previewMath: snapshot.previewMath,
-    updatedAt: snapshot.updatedAt
+    updatedAt: firebase.database.ServerValue.TIMESTAMP
   };
 }
 
@@ -521,6 +462,11 @@ function seguimentEnviarAra(force) {
   }
 
   const path = seguimentGetLivePath(snapshot);
+  const draftContext = obtenirContextDraft();
+  if (draftContext && !DraftRestoreCompleted.has(draftContext.path)
+      && !snapshot.resposta) {
+    return Promise.resolve();
+  }
   seguimentEscoltarComentaris(path);
   const staticSignature = seguimentGetStaticSignature(snapshot, path);
   const dynamicSignature = seguimentGetDynamicSignature(snapshot, path);
@@ -547,14 +493,18 @@ function seguimentEnviarAra(force) {
   let writePromise;
 
   if (needsFullWrite) {
-    writePromise = ref.set(snapshot);
+    writePromise = ref.set(Object.assign({}, snapshot, {
+      updatedAt: firebase.database.ServerValue.TIMESTAMP
+    }));
   } else if (onlyHeartbeat) {
-    writePromise = ref.update({ updatedAt: snapshot.updatedAt });
+    writePromise = ref.update({ updatedAt: firebase.database.ServerValue.TIMESTAMP });
   } else {
     writePromise = ref.update(seguimentGetDynamicPayload(snapshot))
       .catch(function (err) {
         console.warn("L'actualitzacio parcial ha fallat; es reintenta completa.", err);
-        return ref.set(snapshot);
+        return ref.set(Object.assign({}, snapshot, {
+          updatedAt: firebase.database.ServerValue.TIMESTAMP
+        }));
       });
   }
 
@@ -625,6 +575,261 @@ function seguimentIniciar() {
   // llegir el grup complet en iniciar i després cada hora.
 }
 
+
+const DRAFT_TTL_MS = 72 * 60 * 60 * 1000;
+const DRAFT_DEBOUNCE_MS = 750;
+const DRAFT_CLOCK_TOLERANCE_MS = 5000;
+const DRAFT_ROOT = "exercicimates/drafts";
+const DraftSyncTimers = new Map();
+const DraftRestores = new Map();
+const DraftRestoreCompleted = new Set();
+let DraftInputGeneration = 0;
+let DraftServerOffsetMs = 0;
+
+function obtenirContextDraft() {
+  const dades = seguimentGetDades();
+  const alumne = sessionStorage.getItem("NomAlumnes");
+  const grup = seguimentGetGrup();
+  const idExercici = dades && dades.ID_Exercici != null
+    ? String(dades.ID_Exercici) : "";
+  if (!dades || !alumne || !idExercici || !grup || grup === "T?") {
+    return null;
+  }
+  const alumneKey = seguimentSafeKey(alumne) + "--"
+    + encodeURIComponent(alumne).replace(/\./g, "%2E");
+  const parts = [seguimentSafeKey(grup), alumneKey, seguimentSafeKey(idExercici)];
+  return {
+    grup: grup,
+    alumne: alumne,
+    idExercici: idExercici,
+    localKey: "ExercicisMates:draft:" + parts.join(":"),
+    path: DRAFT_ROOT + "/" + parts.join("/")
+  };
+}
+
+function draftCoincideix(context, record) {
+  return record && record.grup === context.grup
+    && record.alumne === context.alumne
+    && String(record.idExercici) === context.idExercici
+    && typeof record.resposta === "string";
+}
+
+function draftCaducat(record, esRemot) {
+  const updatedAt = Number(record && record.updatedAt);
+  const ara = Date.now() + (esRemot ? DraftServerOffsetMs : 0);
+  return !Number.isFinite(updatedAt) || updatedAt <= 0
+    || ara - updatedAt > DRAFT_TTL_MS;
+}
+
+function llegirDraftLocal(context) {
+  try {
+    const raw = localStorage.getItem(context.localKey);
+    if (!raw) return null;
+    const record = JSON.parse(raw);
+    if (!draftCoincideix(context, record) || draftCaducat(record)) {
+      localStorage.removeItem(context.localKey);
+      return null;
+    }
+    return record;
+  } catch (err) {
+    console.warn("No s'ha pogut llegir el draft local.", err);
+    return null;
+  }
+}
+
+function guardarDraftLocal(context, resposta) {
+  const record = {
+    resposta: resposta,
+    updatedAt: Date.now(),
+    grup: context.grup,
+    alumne: context.alumne,
+    idExercici: context.idExercici
+  };
+  try {
+    localStorage.setItem(context.localKey, JSON.stringify(record));
+  } catch (err) {
+    console.warn("No s'ha pogut guardar el draft local.", err);
+  }
+  return record;
+}
+
+function esborrarDraftCaducat(context) {
+  if (!SeguimentDb) return Promise.resolve(false);
+  return SeguimentDb.ref(context.path).transaction(function (current) {
+    return current && draftCaducat(current, true) ? null : undefined;
+  }, undefined, false).then(function (result) {
+    return Boolean(result.committed);
+  }).catch(function (err) {
+    console.warn("No s'ha pogut esborrar el draft caducat.", err);
+    return false;
+  });
+}
+
+function llegirDraftFirebase(context) {
+  if (!SeguimentDb) return Promise.resolve(null);
+  return SeguimentDb.ref(context.path).once("value").then(function (snapshot) {
+    const record = snapshot.val();
+    if (!record || !draftCoincideix(context, record)) return null;
+    if (draftCaducat(record, true)) {
+      esborrarDraftCaducat(context);
+      return null;
+    }
+    return record;
+  }).catch(function (err) {
+    console.warn("No s'ha pogut llegir el draft Firebase.", err);
+    return null;
+  });
+}
+
+function llegirDraftLegacyLive(context) {
+  if (!SeguimentDb) return Promise.resolve(null);
+  const snapshot = seguimentGetSnapshot();
+  if (!snapshot) return Promise.resolve(null);
+  return SeguimentDb.ref(seguimentGetLivePath(snapshot)).once("value")
+    .then(function (snapshotDb) {
+      const item = snapshotDb.val();
+      if (!item || item.alumne !== context.alumne
+          || String(item.exerciciId) !== context.idExercici
+          || typeof item.resposta !== "string" || draftCaducat(item, true)) {
+        return null;
+      }
+      return {
+        resposta: item.resposta,
+        updatedAt: item.updatedAt,
+        grup: context.grup,
+        alumne: context.alumne,
+        idExercici: context.idExercici
+      };
+    }).catch(function (err) {
+      console.warn("No s'ha pogut migrar el draft antic de live.", err);
+      return null;
+    });
+}
+
+function triarDraft(local, remot) {
+  if (!local) return remot;
+  if (!remot) return local;
+  const diferencia = Number(remot.updatedAt) - (Number(local.updatedAt) + DraftServerOffsetMs);
+  if (!local.resposta && remot.resposta && diferencia >= 0) return remot;
+  if (!remot.resposta && local.resposta && diferencia <= 0) return local;
+  return diferencia > DRAFT_CLOCK_TOLERANCE_MS ? remot : local;
+}
+
+function guardarDraftFirebase(context) {
+  if (!SeguimentDb) return Promise.resolve(false);
+  const pending = DraftRestores.get(context.path);
+  return (pending || Promise.resolve()).then(function () {
+    const record = llegirDraftLocal(context);
+    if (!record) return false;
+    return SeguimentDb.ref(context.path).transaction(function (current) {
+      if (current && draftCoincideix(context, current)
+          && !draftCaducat(current, true)
+          && Number(current.updatedAt) > record.updatedAt + DraftServerOffsetMs + DRAFT_CLOCK_TOLERANCE_MS) {
+        return undefined;
+      }
+      return {
+        resposta: record.resposta,
+        updatedAt: firebase.database.ServerValue.TIMESTAMP,
+        grup: context.grup,
+        alumne: context.alumne,
+        idExercici: context.idExercici
+      };
+    }, undefined, false).then(function (result) {
+      return Boolean(result.committed);
+    });
+  }).catch(function (err) {
+    console.warn("No s'ha pogut sincronitzar el draft Firebase.", err);
+    return false;
+  });
+}
+
+function programarDraftFirebase(context) {
+  const anterior = DraftSyncTimers.get(context.path);
+  if (anterior) window.clearTimeout(anterior.timer);
+  const timer = window.setTimeout(function () {
+    DraftSyncTimers.delete(context.path);
+    guardarDraftFirebase(context);
+  }, DRAFT_DEBOUNCE_MS);
+  DraftSyncTimers.set(context.path, { timer: timer, context: context });
+}
+
+function guardarEnInputDraft(resposta) {
+  const context = obtenirContextDraft();
+  if (!context) return;
+  DraftInputGeneration++;
+  guardarDraftLocal(context, resposta);
+  programarDraftFirebase(context);
+}
+
+function restaurarDraft() {
+  const context = obtenirContextDraft();
+  const editor = document.getElementById("Camp");
+  if (!context || !editor) return Promise.resolve(false);
+  const generacioInicial = DraftInputGeneration;
+  const local = llegirDraftLocal(context);
+  if (local && !editor.innerText) {
+    editor.innerText = local.resposta;
+    if (typeof actualitzarVistaMatematica === "function") {
+      actualitzarVistaMatematica();
+    }
+  }
+  const lectura = llegirDraftFirebase(context).then(function (remot) {
+    return (!local && !remot ? llegirDraftLegacyLive(context) : Promise.resolve(null))
+      .then(function (legacy) {
+        const actual = obtenirContextDraft();
+        if (document.getElementById("Camp") !== editor || !actual
+            || actual.path !== context.path || DraftInputGeneration !== generacioInicial) {
+          return false;
+        }
+        const triat = triarDraft(local, remot) || legacy;
+        if (!triat) return false;
+        if (editor.innerText !== triat.resposta) {
+          editor.innerText = triat.resposta;
+          if (typeof actualitzarVistaMatematica === "function") {
+            actualitzarVistaMatematica();
+          }
+        }
+        if (triat === remot || triat === legacy) {
+          try {
+            localStorage.setItem(context.localKey, JSON.stringify(triat));
+          } catch (err) {
+            console.warn("No s'ha pogut copiar el draft remot al magatzem local.", err);
+          }
+          if (triat === legacy) programarDraftFirebase(context);
+        } else if (!remot || remot.resposta !== local.resposta) {
+          programarDraftFirebase(context);
+        }
+        return true;
+      });
+  }).finally(function () {
+    if (DraftRestores.get(context.path) === lectura) {
+      DraftRestores.delete(context.path);
+    }
+    DraftRestoreCompleted.add(context.path);
+    if (window.SeguimentLive) window.SeguimentLive.enviarAra(true);
+  });
+  DraftRestores.set(context.path, lectura);
+  return lectura;
+}
+
+function flushDraftsPendents() {
+  DraftSyncTimers.forEach(function (entry, path) {
+    window.clearTimeout(entry.timer);
+    DraftSyncTimers.delete(path);
+    guardarDraftFirebase(entry.context);
+  });
+}
+
+window.DraftResposta = {
+  guardarEnInput: guardarEnInputDraft,
+  restaurar: restaurarDraft,
+  flushPendents: flushDraftsPendents
+};
+window.addEventListener("pagehide", flushDraftsPendents);
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "hidden") flushDraftsPendents();
+});
+
 try {
   if (!window.firebase || !window.firebaseConfig) {
     throw new Error("Firebase scripts o configuracio no carregats.");
@@ -634,13 +839,45 @@ try {
     firebase.initializeApp(window.firebaseConfig);
   }
   SeguimentDb = firebase.database();
+  const controlPath = "exercicimates/config/" + seguimentSafeKey(seguimentGetGrup())
+    + "/penalitzarAbandonament";
+  let penalitzarAbandonament = false;
+  window.ControlAbandonament = {
+    estaActiu: function () { return penalitzarAbandonament; },
+    establir: function (actiu) {
+      if (typeof esPerfilProfe !== "function" || !esPerfilProfe()) {
+        return Promise.reject(new Error("Control reservat a Profe."));
+      }
+      return SeguimentDb.ref(controlPath).set(Boolean(actiu));
+    }
+  };
+  SeguimentDb.ref(controlPath).on("value", function (snapshot) {
+    penalitzarAbandonament = snapshot.val() === true;
+    window.dispatchEvent(new Event("control-abandonament-change"));
+  }, function (err) {
+    console.warn("No s'ha pogut llegir el control d'eixida.", err);
+  });
+  function actualitzarPresencia(event) {
+    SeguimentFocusState = event.type === "blur" || event.type === "pagehide"
+      || document.visibilityState === "hidden" ? "HIDDEN"
+      : (seguimentPotEnviarHeartbeat() ? "VISIBLE" : "HIDDEN");
+    seguimentEnviarAra(true);
+  }
+  document.addEventListener("visibilitychange", actualitzarPresencia);
+  window.addEventListener("focus", actualitzarPresencia);
+  window.addEventListener("pageshow", actualitzarPresencia);
+  window.addEventListener("blur", actualitzarPresencia);
+  window.addEventListener("pagehide", actualitzarPresencia);
+  SeguimentDb.ref(".info/serverTimeOffset").on("value", function (snapshot) {
+    const offset = Number(snapshot.val());
+    if (Number.isFinite(offset)) DraftServerOffsetMs = offset;
+  });
 
   window.SeguimentLive = {
     enviarAra: seguimentEnviarAra,
     esborrarActual: seguimentEsborrarActual,
     iniciarSeguiment: seguimentIniciar,
     netejarCaducats: seguimentNetejarCaducats,
-    restaurarRespostaPendent: seguimentRestaurarRespostaPendent,
     provaFirebase: function () {
       if (!SeguimentDb) {
         return Promise.reject(new Error("Firebase no inicialitzat."));
