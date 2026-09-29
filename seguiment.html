@@ -403,6 +403,41 @@
       margin-bottom: 0;
     }
 
+    #modalSolution .algebra-unit { text-align: left; }
+    #modalSolution .algebra-unit h1 {
+      color: #2c3e50;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 10px;
+    }
+    #modalSolution .algebra-unit h2 { color: #3498db; margin-top: 25px; }
+    #modalSolution .algebra-unit h3 { color: #16a085; margin: 15px 0; }
+    #modalSolution .algebra-unit p,
+    #modalSolution .algebra-unit li {
+      color: #34495e;
+      font-family: "Helvetica Neue", sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    #modalSolution .algebra-unit .example {
+      background: #f8f9fa;
+      border-left: 4px solid #3498db;
+      margin: 15px 0;
+      padding: 15px;
+    }
+    #modalSolution .algebra-unit .exercise {
+      background: #e8f6f3;
+      border-left: 4px solid #1abc9c;
+      margin: 15px 0;
+      padding: 15px;
+    }
+    #modalSolution .algebra-unit code {
+      background: #ecf0f1;
+      border-radius: 3px;
+      font-family: "Courier New", monospace;
+      padding: 2px 5px;
+    }
+    #modalSolution .algebra-unit ul { margin: 10px 0; padding-left: 20px; }
+
     .detail-html details {
       margin: 8px 0;
     }
@@ -582,10 +617,6 @@
         </div>
         <button class="close" id="closeModal" aria-label="Tancar">x</button>
       </div>
-      <div class="detail-block">
-        <h3>Pregunta</h3>
-        <div class="detail-text detail-html math-content question-toggle" id="modalQuestion" role="button" tabindex="0" title="Fes clic per desplegar o plegar la pregunta"></div>
-      </div>
       <div class="detail-block" id="solutionBlock">
         <h3>Solucio de l'exercici</h3>
         <details class="solution-details" id="solutionDetails">
@@ -653,7 +684,6 @@
     const closeModal = document.getElementById("closeModal");
     const modalTitle = document.getElementById("modalTitle");
     const modalMeta = document.getElementById("modalMeta");
-    const modalQuestion = document.getElementById("modalQuestion");
     const solutionBlock = document.getElementById("solutionBlock");
     const solutionDetails = document.getElementById("solutionDetails");
     const modalSolution = document.getElementById("modalSolution");
@@ -673,6 +703,15 @@
     let activeModalContentSignature = "";
     let activeModalSolutionSignature = "";
     let commentsByPath = new Map();
+    const rowStates = new Map();
+    const exerciseCache = new Map();
+    const exerciseRequests = new Map();
+    const groupEndpoints = {
+      T1: "https://script.google.com/macros/s/AKfycbxvgyZP2QJm2OtwaOXn8ycYTLKXsSENb8acfVEN93CxC68Xi6PAP0rkXbPsV-rKuuZH/exec",
+      T2: "https://script.google.com/macros/s/AKfycbz1uPaLD_6hxD0C_nAK8fkjuFRFIEvkrKFOGnO8mACiwhmngZfD3Vmf3AvGAbnvd6x_7A/exec",
+      T3: "https://script.google.com/macros/s/AKfycbxqHmK7Tfp4GlWK664y_YH_lkwnkfeeOkSXCiAthi4QWsb9gT6DNkk7b7TJP3sUF3EROQ/exec",
+      T4: "https://script.google.com/macros/s/AKfycbztPjI8M7LbhdtE5zcwzBsYiLjRUP71xE5MbDzgFCl___ilA5APHRVaxZYKCozrcJY/exec"
+    };
     const MS_HORA = 60 * 60 * 1000;
     const DEFAULT_TTL_MS = 48 * MS_HORA;
     const COMMENT_MAX_CHARS = 2000;
@@ -763,20 +802,11 @@
     }
 
     function renderModalMath() {
-      const elements = [modalQuestion, modalAnswerMath, modalSavedAnswer];
+      const elements = [modalAnswerMath, modalSavedAnswer];
       if (solutionDetails.open) {
         elements.push(modalSolution);
       }
       renderMath(elements);
-    }
-
-    function setQuestionExpanded(expanded) {
-      modalQuestion.classList.toggle("expanded", expanded);
-      modalQuestion.setAttribute("aria-expanded", expanded ? "true" : "false");
-    }
-
-    function toggleQuestionExpanded() {
-      setQuestionExpanded(!modalQuestion.classList.contains("expanded"));
     }
 
     function attachSolutionToggleRenderers() {
@@ -839,6 +869,40 @@
         return "";
       }
       return `${item.groupKey || item.grup}/${item.key}`;
+    }
+
+    function exerciseKey(item) {
+      return `${(item.grup || item.groupKey || "").toUpperCase()}|${item.exerciciId || ""}`;
+    }
+
+    function preloadExercise(item) {
+      const key = exerciseKey(item);
+      const group = (item.grup || item.groupKey || "").toUpperCase();
+      if (!item.exerciciId || !groupEndpoints[group]) return Promise.resolve(null);
+      if (exerciseCache.has(key)) return Promise.resolve(exerciseCache.get(key));
+      if (exerciseRequests.has(key)) return exerciseRequests.get(key);
+      const request = fetch(groupEndpoints[group], {
+        method: "POST",
+        body: JSON.stringify({
+          accio: "obtenirExerciciSeguiment",
+          NomAlumne: "Seguiment",
+          ID_Exercici: item.exerciciId
+        })
+      }).then(function (response) { return response.json(); }).then(function (data) {
+        if (!data || String(data.ID_Exercici) !== String(item.exerciciId)
+            || data.Resposta === undefined) throw new Error("Exercici no disponible.");
+        exerciseCache.set(key, data);
+        if (activeModalItem && exerciseKey(activeModalItem) === key) syncActiveModal();
+        return data;
+      }).catch(function (err) {
+        console.warn("No s'ha pogut carregar l'exercici de Seguiment.", err);
+        return null;
+      }).then(function (data) {
+        exerciseRequests.delete(key);
+        return data;
+      });
+      exerciseRequests.set(key, request);
+      return request;
     }
 
     function flattenComments(data) {
@@ -989,48 +1053,97 @@
         || Date.now() + serverOffsetMs - ultimaPresencia > PRESENCIA_CADUCADA_MS;
     }
 
+    function updateRowPresence(state) {
+      const item = state.item;
+      const status = getStatus(item);
+      state.row.classList.toggle("alumne-fora", alumneFora(item));
+      state.row.children[0].firstChild.className = `pill ${status.className}`;
+      state.row.children[0].firstChild.textContent = status.label;
+      state.row.children[5].title = formatClock(item.updatedAt);
+      state.row.children[5].textContent = formatRelative(item.updatedAt);
+    }
+
+    function scheduleRowMath(state) {
+      window.clearTimeout(state.mathTimer);
+      state.mathTimer = window.setTimeout(function () {
+        if (state.mathBusy || state.pendingHtml === null) return;
+        state.mathBusy = true;
+        const html = state.pendingHtml;
+        state.pendingHtml = null;
+        if (window.MathJax && typeof MathJax.typesetClear === "function") {
+          MathJax.typesetClear([state.previewEl]);
+        }
+        setHtmlOrPlaceholder(state.previewEl, html, "sense text encara");
+        renderMath([state.previewEl]).then(function () {
+          showPreviewEnd(state.previewEl);
+          state.mathBusy = false;
+          if (state.pendingHtml !== null) scheduleRowMath(state);
+        });
+      }, 150);
+    }
+
     function render() {
       const items = visibleItems();
-      const previewMathElements = [];
-      rowsEl.innerHTML = "";
+      const visiblePaths = new Set();
       emptyState.style.display = items.length ? "none" : "block";
       statusLine.textContent = `${items.length} registres visibles de ${totalLiveItems} totals`;
 
       for (const item of items) {
-        const status = getStatus(item);
-        const row = document.createElement("tr");
-        row.classList.toggle("alumne-fora", alumneFora(item));
-        row.innerHTML = `
-          <td><span class="pill ${status.className}">${status.label}</span></td>
-          <td class="group"></td>
-          <td></td>
-          <td class="question"></td>
-          <td class="preview"></td>
-          <td title="${formatClock(item.updatedAt)}">${formatRelative(item.updatedAt)}</td>
-        `;
-        row.children[1].textContent = escapeText(item.grup);
-        row.children[2].textContent = escapeText(item.alumne);
-        row.children[3].textContent = escapeText(item.preguntaTitol || "Pregunta");
-        const previewEl = document.createElement("div");
-        previewEl.className = "preview-math math-content";
-        setHtmlOrPlaceholder(previewEl, getPreviewHtml(item), "sense text encara");
-        row.children[4].innerHTML = "";
-        row.children[4].appendChild(previewEl);
-        previewMathElements.push(previewEl);
-        row.addEventListener("click", () => openModal(item));
-        rowsEl.appendChild(row);
+        const path = getItemPath(item);
+        visiblePaths.add(path);
+        let state = rowStates.get(path);
+        if (!state) {
+          const row = document.createElement("tr");
+          row.innerHTML = '<td><span class="pill"></span></td><td class="group"></td><td></td><td class="question"></td><td class="preview"></td><td></td>';
+          const previewEl = document.createElement("div");
+          previewEl.className = "preview-math math-content";
+          row.children[4].appendChild(previewEl);
+          state = { row, previewEl, item, previewHtml: null, pendingHtml: null, mathBusy: false, mathTimer: null };
+          row.addEventListener("click", function () { openModal(state.item); });
+          rowStates.set(path, state);
+        }
+        state.item = item;
+        const labelSignature = [item.grup, item.alumne, item.preguntaTitol].join("|");
+        if (labelSignature !== state.labelSignature) {
+          state.row.children[1].textContent = escapeText(item.grup);
+          state.row.children[2].textContent = escapeText(item.alumne);
+          state.row.children[3].textContent = escapeText(item.preguntaTitol || "Pregunta");
+          state.labelSignature = labelSignature;
+        }
+        const presenceSignature = `${item.updatedAt}|${item.focusState}`;
+        if (presenceSignature !== state.presenceSignature) {
+          updateRowPresence(state);
+          state.presenceSignature = presenceSignature;
+        }
+        const previewHtml = getPreviewHtml(item);
+        if (previewHtml !== state.previewHtml) {
+          state.previewHtml = previewHtml;
+          state.pendingHtml = previewHtml;
+          scheduleRowMath(state);
+        }
+        if (exerciseKey(item) !== state.exerciseKey) {
+          state.exerciseKey = exerciseKey(item);
+          preloadExercise(item);
+        }
       }
-
-      if (previewMathElements.length) {
-        window.setTimeout(function () {
-          renderMath(previewMathElements).then(function () {
-            previewMathElements.forEach(showPreviewEnd);
-          });
-        }, 0);
+      for (const [path, state] of rowStates) {
+        if (!visiblePaths.has(path)) {
+          window.clearTimeout(state.mathTimer);
+          state.row.remove();
+          rowStates.delete(path);
+        }
       }
+      items.forEach(function (item, index) {
+        const row = rowStates.get(getItemPath(item)).row;
+        if (rowsEl.children[index] !== row) rowsEl.insertBefore(row, rowsEl.children[index] || null);
+      });
+      if (broadcastBackdrop.classList.contains("open")) updateBroadcastTarget();
+    }
 
-      if (broadcastBackdrop.classList.contains("open")) {
-        updateBroadcastTarget();
+    function refreshPresence() {
+      for (const state of rowStates.values()) updateRowPresence(state);
+      if (activeModalItem && modalBackdrop.classList.contains("open")) {
+        modalMeta.textContent = `${activeModalItem.preguntaTitol || "Pregunta"} | ${formatClock(activeModalItem.updatedAt)} | ${formatRelative(activeModalItem.updatedAt)}`;
       }
     }
 
@@ -1114,10 +1227,9 @@
     }
 
     function getModalParts(item) {
-      const questionHtml = item.preguntaHtml || item.pregunta || item.apartat || "";
+      const cached = exerciseCache.get(exerciseKey(item));
       return {
-        question: item.preguntaHtml || textToHtml(questionHtml),
-        solution: item.solucio || "",
+        solution: cached ? cached.Resposta : (item.solucio || ""),
         answerMath: item.respostaMath || textToHtml(item.resposta),
         answerPlain: textToHtml(item.resposta),
         savedAnswer: buildSavedAnswerHtml(item)
@@ -1126,7 +1238,6 @@
 
     function getModalContentSignature(parts) {
       return [
-        parts.question,
         parts.solution,
         parts.answerMath,
         parts.answerPlain,
@@ -1143,9 +1254,6 @@
       modalMeta.textContent = `${item.preguntaTitol || "Pregunta"} | ${formatClock(item.updatedAt)} | ${formatRelative(item.updatedAt)}`;
 
       if (shouldRefreshContent) {
-        setHtmlOrPlaceholder(modalQuestion, parts.question, "Sense pregunta");
-        setQuestionExpanded(false);
-
         const solutionWasOpen = solutionDetails.open;
         const innerDetailsState = getDetailsOpenState(modalSolution);
         const shouldRefreshSolution = resetSolution || parts.solution !== activeModalSolutionSignature;
@@ -1161,7 +1269,7 @@
         }
 
         solutionBlock.hidden = !hasSolution;
-        solutionDetails.open = hasSolution && !resetSolution && solutionWasOpen;
+        solutionDetails.open = hasSolution && (shouldRefreshSolution || solutionWasOpen);
 
         setHtmlOrPlaceholder(modalAnswerMath, parts.answerMath, "Sense vista matematica encara");
         setHtmlOrPlaceholder(modalAnswerPlain, parts.answerPlain, "Sense text pla encara");
@@ -1209,6 +1317,7 @@
     }
 
     function openModal(item) {
+      preloadExercise(item);
       activeModalItem = item;
       activeModalContentSignature = "";
       activeModalSolutionSignature = "";
@@ -1307,13 +1416,6 @@
         hideModal();
       }
     });
-    modalQuestion.addEventListener("click", toggleQuestionExpanded);
-    modalQuestion.addEventListener("keydown", function (event) {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        toggleQuestionExpanded();
-      }
-    });
     closeModal.addEventListener("click", hideModal);
     solutionDetails.addEventListener("toggle", function () {
       if (solutionDetails.open) {
@@ -1396,8 +1498,7 @@
     });
 
     window.setInterval(function () {
-      render();
-      syncActiveModal();
+      refreshPresence();
     }, 5000);
     window.setInterval(function () {
       const processed = processLiveItems(liveItems);

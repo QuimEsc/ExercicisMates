@@ -228,17 +228,11 @@ function seguimentGetSnapshot() {
     seguimentGetUltimesParaules(resposta, previewWords),
     window.LIVE_PREVIEW_MAX_CHARS || 500
   );
-  const preguntaHtml = seguimentBuildQuestionHtml(Dades);
-  const preguntaText = seguimentStripHtml(preguntaHtml);
-
   return {
     grup: grup,
     alumne: alumne,
     apartat: seguimentLimitarText(seguimentStripHtml(Dades.Apartat || ""), 200),
     preguntaTitol: Dades.ID_Exercici ? `Pregunta ${Dades.ID_Exercici}` : "Pregunta",
-    pregunta: seguimentLimitarText(preguntaText, window.LIVE_QUESTION_TEXT_MAX_CHARS || 10000),
-    preguntaHtml: seguimentLimitarHtml(preguntaHtml, window.LIVE_QUESTION_HTML_MAX_CHARS || 100000),
-    solucio: seguimentLimitarHtml(Dades.Resposta || "", window.LIVE_SOLUTION_MAX_CHARS || 50000),
     preview: preview,
     previewMath: seguimentLimitarHtml(
       seguimentGetRespostaMathActual(preview),
@@ -374,9 +368,6 @@ function seguimentGetStaticSignature(snapshot, path) {
     snapshot.alumne,
     snapshot.apartat,
     snapshot.preguntaTitol,
-    snapshot.pregunta,
-    snapshot.preguntaHtml,
-    snapshot.solucio,
     snapshot.tipusCorreccio,
     snapshot.id,
     snapshot.exerciciId

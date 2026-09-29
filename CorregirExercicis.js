@@ -824,6 +824,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
     var RenderPuntGeneration = 0;
     var SolucioEnCarrega = false;
     var CorreccioEnProces = false;
+    var CarregaTemaGeneration = 0;
 
     function iniciarProces(){
         // Conservar NomAlumnes i els drafts entre recarregues.
@@ -832,6 +833,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
     }
 
     function demanarTemaDisponible() {
+        ++CarregaTemaGeneration;
         var alumne = sessionStorage.getItem("NomAlumnes");
         return fetch(url, {
             method: "POST",
@@ -849,6 +851,59 @@ function calculateImprovedLevenshteinDistance(a, b) {
             }
             renderitzarPuntDisponible(IndexPuntVisible);
             return tema;
+        });
+    }
+
+    function carregarPuntPrioritari() {
+        var generacio = ++CarregaTemaGeneration;
+        var alumne = sessionStorage.getItem("NomAlumnes");
+        return fetch(url, {
+            method: "POST",
+            contentType: "application/json",
+            body: JSON.stringify({ accio: "carregarPuntActual", NomAlumne: alumne })
+        }).then(function (response) { return response.json(); }).then(function (resultat) {
+            if (generacio !== CarregaTemaGeneration) return;
+            if (!resultat || !resultat.punt || resultat.punt.Resposta === undefined) {
+                throw new Error("No s'ha pogut carregar el punt actual.");
+            }
+            TemaDisponible = {
+                tema: resultat.tema,
+                maximAlliberat: resultat.maximAlliberat,
+                indexInicial: 0,
+                punts: [resultat.punt]
+            };
+            IndexPuntVisible = 0;
+            renderitzarPuntDisponible(0);
+            // El punt ja es pot treballar mentre es descarrega la navegació.
+            return fetch(url, {
+                method: "POST",
+                contentType: "application/json",
+                body: JSON.stringify({ accio: "carregarTemaDisponible", NomAlumne: alumne })
+            }).then(function (response) { return response.json(); }).then(function (tema) {
+                if (generacio !== CarregaTemaGeneration) return;
+                if (!tema || !Array.isArray(tema.punts)) throw new Error("Snapshot no valida.");
+                var puntVisible = TemaDisponible.punts[IndexPuntVisible];
+                var idVisible = String(puntVisible.ID_Exercici);
+                var indexVisible = tema.punts.findIndex(function (punt) {
+                    return String(punt.ID_Exercici) === idVisible;
+                });
+                TemaDisponible = tema;
+                if (indexVisible >= 0) {
+                    IndexPuntVisible = indexVisible;
+                    // Mantindre el DOM i el draft que l'alumne ja està escrivint.
+                    var dades = llegirJsonLocalStorage("Dades");
+                    if (dades && String(dades.ID_Exercici) === idVisible) {
+                        tema.punts[indexVisible].enviat = tema.punts[indexVisible].enviat || puntVisible.enviat === true;
+                        tema.punts[indexVisible].ID = tema.punts[indexVisible].ID || puntVisible.ID || dades.ID;
+                        dades.Resposta = tema.punts[indexVisible].Resposta;
+                        localStorage.setItem("Dades", JSON.stringify(dades));
+                    }
+                    actualitzarBotonsNavegacio();
+                } else {
+                    IndexPuntVisible = tema.indexInicial;
+                    renderitzarPuntDisponible(IndexPuntVisible);
+                }
+            });
         });
     }
 
@@ -878,9 +933,11 @@ function calculateImprovedLevenshteinDistance(a, b) {
         }
         var container = document.getElementById("container");
         container.textContent = "Carregant els punts disponibles...";
-        demanarTemaDisponible().catch(function (err) {
+        carregarPuntPrioritari().catch(function (err) {
             console.warn("No s'han pogut carregar els punts disponibles.", err);
-            container.textContent = "No s'han pogut carregar els punts. Recarrega la pagina.";
+            if (!TemaDisponible || !TemaDisponible.punts.length) {
+                container.textContent = "No s'han pogut carregar els punts. Recarrega la pagina.";
+            }
         });
     }
 
@@ -984,11 +1041,7 @@ function calculateImprovedLevenshteinDistance(a, b) {
         if (!TemaDisponible || !Number.isInteger(index)
             || index < 0 || index >= TemaDisponible.punts.length) return false;
         var punt = TemaDisponible.punts[index];
-        if (!punt || punt.Resposta !== undefined) {
-            punt = Object.assign({}, punt);
-            delete punt.Resposta;
-            TemaDisponible.punts[index] = punt;
-        }
+        if (!punt) return false;
         RenderPuntGeneration++;
         netejarEstatExerciciLegacy();
         localStorage.setItem("Dades", JSON.stringify(punt));
